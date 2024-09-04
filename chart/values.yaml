@@ -10,8 +10,8 @@ cmRaczyloCom:
         drop:
         - ALL
     image:
-      repository: controller
-      tag: latest
+      repository: ghcr.io/lukaszraczylo/kubernetes-images-sync-operator
+      tag: 0.1.5
     resources:
       limits:
         cpu: 500m

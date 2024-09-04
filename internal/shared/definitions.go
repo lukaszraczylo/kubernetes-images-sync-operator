@@ -7,7 +7,7 @@ import (
 
 const (
 	// JOB IMAGES
-	BACKUP_JOB_IMAGE = "ghcr.io/lukaszraczylo/docker-image-management:v0.0.6"
+	BACKUP_JOB_IMAGE = "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:1.0.2"
 
 	// AVAILABLE STATUSES
 	STATUS_PENDING  = "PENDING"

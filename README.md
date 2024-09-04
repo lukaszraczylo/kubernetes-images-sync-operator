@@ -1,102 +1,58 @@
 # kubernetes-images-sync-operator
-// TODO(user): Add simple overview of use/purpose
+
+Kubernetes operator backing up images into the local / S3 compatible storage
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+Operator was created to simplify the impex between open-to-world and air-gapped environment.
+As transfer of the deployment manifests is relatively easy, images are a completely different story.
+Air-gapped environments usually have issues with missing images and amount of data required to be transferred between them.
+This operator takes care of it and ensures that no images were missed out ( including initImages and ephemeralImages ) and 
+impex itself is as small as possible due to the cross comparison with previouslly executed backups.
 
 ## Getting Started
 
-### Prerequisites
-- go version v1.22.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+Operator installation
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
 
-```sh
-make docker-build docker-push IMG=<some-registry>/kubernetes-images-sync-operator:tag
+```
+helm repo add raczylo https://lukaszraczylo.github.io/helm-charts/
+helm install raczylo/kube-images-sync
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+## Starting the backup
 
-**Install the CRDs into the cluster:**
+Please remember that backups are triggered whenever the new object appears
 
-```sh
-make install
+```
+apiVersion: raczylo.com/v1
+kind: ClusterImageExport
+metadata:
+  name: backup-20240901
+spec:
+  # Excludes will remove all images with listed wording from the backup list
+  # excludes:
+  #   - nginx
+  # Includes will add ONLY images with listed wording to the backup list
+  includes:
+    - busybox
+  basePath: /images # base path in the target directory
+  storage:
+    target: S3 # file backup is not ready yet
+    s3:
+      bucket: my-backup-in-s3
+      region: us-west-2
+      accessKey: yyy
+      secretKey: zzz
+    # Endpoint allows you to direct the backup to your own S3 compatible endpoint like minio
+    # endpoint: http://127.0.0.1:8010
+    # secretName: my-secret-in-cluster # Not ready yet
+    # useRole: true # Current role to be used instead of access / secret keys
+    # roleARN: my-awesome-role # Instead of picking the default role, use the specified one
+  maxConcurrentJobs: 1
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
-```sh
-make deploy IMG=<some-registry>/kubernetes-images-sync-operator:tag
-```
-
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
-
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
-```
-
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/kubernetes-images-sync-operator:tag
-```
-
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/kubernetes-images-sync-operator/<tag or branch>/dist/install.yaml
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
+#### Random fluff
 
 Copyright 2024.
 

@@ -1,5 +1,7 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/lukaszraczylo/kubernetes-images-sync-operator
+IMG_WORKER ?= ghcr.io/lukaszraczylo/kubernetes-images-sync-worker
+CHART_NAME = kube-images-sync-operator
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
@@ -115,9 +117,21 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name kubernetes-images-sync-operator-builder
 	$(CONTAINER_TOOL) buildx use kubernetes-images-sync-operator-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG}:${CURRENT_VERSION} -f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --build-arg IMAGE_VERSION_TAG=${CURRENT_VERSION} --tag ${IMG}:${CURRENT_VERSION} -f Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm kubernetes-images-sync-operator-builder
 	rm Dockerfile.cross
+
+
+.PHONY: docker-buildx-job-container
+docker-buildx-job-container: ## Build and push docker image for the manager for cross-platform support
+	@cd docker-image-worker && ( \
+		sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross && \
+		$(CONTAINER_TOOL) buildx create --name kubernetes-images-sync-operator-builder || true && \
+		$(CONTAINER_TOOL) buildx use kubernetes-images-sync-operator-builder && \
+		$(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --build-arg IMAGE_VERSION_TAG=${CURRENT_VERSION} --tag ${IMG_WORKER}:${CURRENT_VERSION} -f Dockerfile.cross . && \
+		$(CONTAINER_TOOL) buildx rm kubernetes-images-sync-operator-builder || true && \
+		rm Dockerfile.cross \
+	) && cd ..
 
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
@@ -203,6 +217,22 @@ helm: manifests kustomize helmify
 	$(KUSTOMIZE) build config/default | helmify && \
 	cp chart-defaults/Chart.yaml chart/Chart.yaml && \
 	./update-version.sh $(CURRENT_VERSION) $(IMG)
+
+.PHONY: release # Generates helm chart, builds docker images and pushes them to the registry
+release: helm docker-buildx docker-buildx-job-container release-chart
+
+.PHONY: release-chart
+release-chart:
+	@test -d ../helm-charts || exit 1
+	rm -fr ../helm-charts/charts/${CHART_NAME} || true
+	mkdir -p ../helm-charts/charts/${CHART_NAME}
+	cp -R chart/* ../helm-charts/charts/${CHART_NAME}
+	cd ../helm-charts/charts/${CHART_NAME}; \
+		cr package --config ../../chart-releaser.yaml;
+	cd ../helm-charts/; git add -A charts/packages; git fix; git push;
+	cd ../helm-charts/charts/${CHART_NAME}; cr upload --config ../../chart-releaser.yaml --skip-existing;
+	cd ../helm-charts/charts/${CHART_NAME}; rm -fr .cr-index; mkdir .cr-index; cr index --config ../../chart-releaser.yaml; cp .cr-index/index.yaml ../../index.yaml; || true
+	git fix; git push
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
