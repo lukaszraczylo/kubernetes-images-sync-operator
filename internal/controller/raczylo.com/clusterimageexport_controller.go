@@ -20,8 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	raczylocomv1 "raczylo.com/kubernetes-images-sync-operator/api/raczylo.com/v1"
-	shared "raczylo.com/kubernetes-images-sync-operator/shared"
+	raczylocomv1 "github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1"
+	shared "github.com/lukaszraczylo/kubernetes-images-sync-operator/internal/shared"
 )
 
 // ClusterImageExportReconciler reconciles a ClusterImageExport object

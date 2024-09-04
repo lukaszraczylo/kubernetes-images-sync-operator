@@ -35,9 +35,9 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	raczylocomv1 "raczylo.com/kubernetes-images-sync-operator/api/raczylo.com/v1"
-	raczylocomcontroller "raczylo.com/kubernetes-images-sync-operator/internal/controller/raczylo.com"
-	"raczylo.com/kubernetes-images-sync-operator/shared"
+	raczylocomv1 "github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1"
+	raczylocomcontroller "github.com/lukaszraczylo/kubernetes-images-sync-operator/internal/controller/raczylo.com"
+	"github.com/lukaszraczylo/kubernetes-images-sync-operator/internal/shared"
 	// +kubebuilder:scaffold:imports
 )
 

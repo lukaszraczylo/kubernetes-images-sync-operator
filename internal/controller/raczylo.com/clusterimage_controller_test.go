@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	raczylocomv1 "raczylo.com/kubernetes-images-sync-operator/api/raczylo.com/v1"
+	raczylocomv1 "github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1"
 )
 
 var _ = Describe("ClusterImage Controller", func() {

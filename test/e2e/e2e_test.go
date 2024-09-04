@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"raczylo.com/kubernetes-images-sync-operator/test/utils"
+	"github.com/lukaszraczylo/kubernetes-images-sync-operator/test/utils"
 )
 
 const namespace = "kubernetes-images-sync-operator-system"

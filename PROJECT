@@ -7,7 +7,7 @@ layout:
   - go.kubebuilder.io/v4
 multigroup: true
 projectName: kubernetes-images-sync-operator
-repo: raczylo.com/kubernetes-images-sync-operator
+repo: github.com/lukaszraczylo/kubernetes-images-sync-operator
 resources:
   - api:
       crdVersion: v1
@@ -15,7 +15,7 @@ resources:
     controller: true
     group: raczylo.com
     kind: ClusterImageExport
-    path: raczylo.com/kubernetes-images-sync-operator/api/raczylo.com/v1
+    path: github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1
     version: v1
   - api:
       crdVersion: v1
@@ -23,6 +23,6 @@ resources:
     controller: true
     group: raczylo.com
     kind: ClusterImage
-    path: raczylo.com/kubernetes-images-sync-operator/api/raczylo.com/v1
+    path: github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1
     version: v1
 version: "3"

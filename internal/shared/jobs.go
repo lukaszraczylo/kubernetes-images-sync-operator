@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	raczylocomv1 "github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
-	raczylocomv1 "raczylo.com/kubernetes-images-sync-operator/api/raczylo.com/v1"
 )
 
 type JobParams struct {

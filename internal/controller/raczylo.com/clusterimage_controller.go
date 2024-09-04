@@ -18,8 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	raczylocomv1 "raczylo.com/kubernetes-images-sync-operator/api/raczylo.com/v1"
-	"raczylo.com/kubernetes-images-sync-operator/shared"
+	raczylocomv1 "github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1"
+	"github.com/lukaszraczylo/kubernetes-images-sync-operator/internal/shared"
 )
 
 type ClusterImageReconciler struct {
