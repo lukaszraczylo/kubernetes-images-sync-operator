@@ -1,0 +1,23 @@
+# permissions for end users to view clusterimageexports.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: kubernetes-images-sync-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: raczylo.com-clusterimageexport-viewer-role
+rules:
+  - apiGroups:
+      - raczylo.com
+    resources:
+      - clusterimageexports
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - raczylo.com
+    resources:
+      - clusterimageexports/status
+    verbs:
+      - get

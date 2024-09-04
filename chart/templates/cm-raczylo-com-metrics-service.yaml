@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chart.fullname" . }}-cm-raczylo-com-metrics-service
+  labels:
+    control-plane: cm-raczylo-com
+  {{- include "chart.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.cmRaczyloComMetricsService.type }}
+  selector:
+    control-plane: cm-raczylo-com
+  {{- include "chart.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.cmRaczyloComMetricsService.ports | toYaml | nindent 2 }}

@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: kubernetes-images-sync-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: raczylo-com-leaderbinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: raczylo-com-leader
+subjects:
+  - kind: ServiceAccount
+    name: cm-raczylo-com
+    namespace: system

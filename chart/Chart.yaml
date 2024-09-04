@@ -1,0 +1,21 @@
+apiVersion: v2
+name: kube-images-sync
+description: |
+  A Helm chart for Kubernetes Images Sync Operator.
+  Kubernetes Images Sync Operator is responsible for backing up and restoring images from a Kubernetes cluster.
+  It's ultimate goal is to provide synchonization of images between multiple environments, quite often air-gapped.
+  It compiles the list of images currently present in the cluster and uploads them to the specified storage.
+  Whenever new CRD is created - it will try to figure out which images were already uploaded and which are new and 
+  upload only the new ones to avoid repetition.
+
+type: application
+
+version: 0.0.26
+
+appVersion: "0.0.26"
+
+home: https://github.com/lukaszraczylo/kubernetes-images-sync-operator
+
+maintainers:
+  - name: lukaszraczylo
+    email: github-enquiries@raczylo.com
