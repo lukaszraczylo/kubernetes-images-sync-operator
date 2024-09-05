@@ -76,6 +76,8 @@ spec:
                 type: string
               image:
                 type: string
+              imageNamespace:
+                type: string
               sha:
                 type: string
               storage:

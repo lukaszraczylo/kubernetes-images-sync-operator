@@ -64,7 +64,7 @@ func processContainerName(containerName string) (Container, error) {
 	return cnt, nil
 }
 
-func processContainers[T K8sResource](resource T, containersList *ContainersList) error {
+func processContainers[T K8sResource](resource T, namespace string, containersList *ContainersList) error {
 	podSpec := resource.GetPodSpec()
 	if podSpec == nil {
 		return fmt.Errorf("nil PodSpec")
@@ -72,13 +72,13 @@ func processContainers[T K8sResource](resource T, containersList *ContainersList
 
 	allContainers := append(podSpec.Containers, podSpec.InitContainers...)
 	for _, container := range allContainers {
-		if err := processContainer(container.Image, containersList); err != nil {
+		if err := processContainer(container.Image, namespace, containersList); err != nil {
 			return err
 		}
 	}
 
 	for _, container := range podSpec.EphemeralContainers {
-		if err := processContainer(container.EphemeralContainerCommon.Image, containersList); err != nil {
+		if err := processContainer(container.EphemeralContainerCommon.Image, namespace, containersList); err != nil {
 			return err
 		}
 	}
@@ -87,11 +87,12 @@ func processContainers[T K8sResource](resource T, containersList *ContainersList
 }
 
 // processContainer handles the processing of a single container image
-func processContainer(image string, containersList *ContainersList) error {
+func processContainer(image string, containerNamespace string, containersList *ContainersList) error {
 	cnt, err := processContainerName(image)
 	if err != nil {
 		return fmt.Errorf("failed to process container name: %s - %w", image, err)
 	}
+	cnt.ImageNamespace = containerNamespace
 	containersList.Containers = append(containersList.Containers, cnt)
 	return nil
 }
@@ -105,25 +106,25 @@ func ListAndProcessResources[T K8sResource, L client.ObjectList](ctx context.Con
 	switch typedList := any(list).(type) {
 	case *appsv1.DeploymentList:
 		for i := range typedList.Items {
-			if err := processContainers((*DeploymentWrapper)(&typedList.Items[i]), containersList); err != nil {
+			if err := processContainers((*DeploymentWrapper)(&typedList.Items[i]), typedList.Items[i].Namespace, containersList); err != nil {
 				return err
 			}
 		}
 	case *batchv1.JobList:
 		for i := range typedList.Items {
-			if err := processContainers((*JobWrapper)(&typedList.Items[i]), containersList); err != nil {
+			if err := processContainers((*JobWrapper)(&typedList.Items[i]), typedList.Items[i].Namespace, containersList); err != nil {
 				return err
 			}
 		}
 	case *appsv1.DaemonSetList:
 		for i := range typedList.Items {
-			if err := processContainers((*DaemonSetWrapper)(&typedList.Items[i]), containersList); err != nil {
+			if err := processContainers((*DaemonSetWrapper)(&typedList.Items[i]), typedList.Items[i].Namespace, containersList); err != nil {
 				return err
 			}
 		}
 	case *batchv1.CronJobList:
 		for i := range typedList.Items {
-			if err := processContainers((*CronJobWrapper)(&typedList.Items[i]), containersList); err != nil {
+			if err := processContainers((*CronJobWrapper)(&typedList.Items[i]), typedList.Items[i].Namespace, containersList); err != nil {
 				return err
 			}
 		}

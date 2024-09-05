@@ -61,6 +61,10 @@ spec:
               createdAt:
                 format: date-time
                 type: string
+              excludedNamespaces:
+                items:
+                  type: string
+                type: array
               excludes:
                 description: Exclude images which contain these strings
                 items:
@@ -75,6 +79,10 @@ spec:
                 type: integer
               name:
                 type: string
+              namespaces:
+                items:
+                  type: string
+                type: array
               storage:
                 description: ClusterImageStorageSpec defines the desired state of ClusterImageStorage
                 properties:

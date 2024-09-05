@@ -10,6 +10,8 @@ ifeq ($(CURRENT_VERSION),)
 $(error Failed to extract version number)
 endif
 
+IMAGE_VERSION_TAG ?= $(CURRENT_VERSION)
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -87,11 +89,11 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build -ldflags "-X github.com/lukaszraczylo/kubernetes-images-sync-operator/internal/shared.BACKUP_JOB_IMAGE=ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:$(IMAGE_VERSION_TAG)" -o bin/manager cmd/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+	go run -ldflags "-X github.com/lukaszraczylo/kubernetes-images-sync-operator/internal/shared.BACKUP_JOB_IMAGE=ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:$(IMAGE_VERSION_TAG)" ./cmd/main.go
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
@@ -231,7 +233,7 @@ release-chart:
 		cr package --config ../../chart-releaser.yaml;
 	cd ../helm-charts/; git add -A charts/packages; git fix; git push;
 	cd ../helm-charts/charts/${CHART_NAME}; cr upload --config ../../chart-releaser.yaml --skip-existing;
-	cd ../helm-charts/charts/${CHART_NAME}; rm -fr .cr-index; mkdir .cr-index; cr index --config ../../chart-releaser.yaml; cp .cr-index/index.yaml ../../index.yaml; || true
+	cd ../helm-charts/charts/${CHART_NAME}; rm -fr .cr-index; mkdir .cr-index; cr index --config ../../chart-releaser.yaml; cp .cr-index/index.yaml ../../index.yaml;
 	git fix; git push
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist

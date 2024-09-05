@@ -33,9 +33,20 @@ spec:
   # Excludes will remove all images with listed wording from the backup list
   # excludes:
   #   - nginx
+
   # Includes will add ONLY images with listed wording to the backup list
   includes:
     - busybox
+
+  # Works only with images within specified namespaces
+  # namespaces:
+  #  - default
+  #  - longhorn
+
+  # Works with all images EXCEPT of the ones within namespaces specified
+  # excludedNamespaces:
+  #  - my-awesome-namespace
+
   basePath: /images # base path in the target directory
   storage:
     target: S3 # file backup is not ready yet

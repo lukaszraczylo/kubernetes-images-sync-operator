@@ -54,7 +54,9 @@ type ClusterImageExportSpec struct {
 	// Exclude images which contain these strings
 	Excludes []string `json:"excludes,omitempty"`
 	// Include only images which contain these strings
-	Includes []string `json:"includes,omitempty"`
+	Includes           []string `json:"includes,omitempty"`
+	Namespaces         []string `json:"namespaces,omitempty"`
+	ExcludedNamespaces []string `json:"excludedNamespaces,omitempty"`
 	// Base path for the export - both file and S3
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=255

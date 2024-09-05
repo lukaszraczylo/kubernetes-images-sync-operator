@@ -124,6 +124,16 @@ func (in *ClusterImageExportSpec) DeepCopyInto(out *ClusterImageExportSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.Namespaces != nil {
+		in, out := &in.Namespaces, &out.Namespaces
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.ExcludedNamespaces != nil {
+		in, out := &in.ExcludedNamespaces, &out.ExcludedNamespaces
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	out.Storage = in.Storage
 }
 

@@ -28,13 +28,14 @@ import (
 // +kubebuilder:printcolumn:name="Path",type="string",JSONPath=".spec.exportPath"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type ClusterImageSpec struct {
-	Image      string `json:"image,omitempty"`
-	Tag        string `json:"tag,omitempty"`
-	Sha        string `json:"sha,omitempty"`
-	FullName   string `json:"fullName,omitempty"` // Because I'm lazy and it's easier to pull that way
-	Storage    string `json:"storage,omitempty"`
-	ExportName string `json:"exportName"`
-	ExportPath string `json:"exportPath,omitempty"`
+	Image          string `json:"image,omitempty"`
+	Tag            string `json:"tag,omitempty"`
+	Sha            string `json:"sha,omitempty"`
+	FullName       string `json:"fullName,omitempty"` // Because I'm lazy and it's easier to pull that way
+	Storage        string `json:"storage,omitempty"`
+	ExportName     string `json:"exportName"`
+	ExportPath     string `json:"exportPath,omitempty"`
+	ImageNamespace string `json:"imageNamespace,omitempty"`
 }
 
 // ClusterImageStatus defines the observed state of ClusterImage

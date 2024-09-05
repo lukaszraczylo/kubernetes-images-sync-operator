@@ -130,13 +130,14 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 				},
 			},
 			Spec: raczylocomv1.ClusterImageSpec{
-				Image:      image.Image,
-				Tag:        image.Tag,
-				Sha:        image.Sha,
-				FullName:   image.FullName,
-				Storage:    clusterImageExport.Spec.Storage.StorageTarget,
-				ExportName: clusterImageExport.Name,
-				ExportPath: clusterImageExport.Spec.BasePath,
+				Image:          image.Image,
+				Tag:            image.Tag,
+				Sha:            image.Sha,
+				FullName:       image.FullName,
+				ImageNamespace: image.ImageNamespace,
+				Storage:        clusterImageExport.Spec.Storage.StorageTarget,
+				ExportName:     clusterImageExport.Name,
+				ExportPath:     clusterImageExport.Spec.BasePath,
 			},
 		}
 
@@ -209,6 +210,14 @@ func (r *ClusterImageExportReconciler) listImagesInCluster(ctx context.Context, 
 
 	if len(clusterImageExport.Spec.Excludes) > 0 {
 		containersList = shared.RemoveExcludedImages(containersList, clusterImageExport.Spec.Excludes)
+	}
+
+	if len(clusterImageExport.Spec.Namespaces) > 0 {
+		containersList = shared.FilterOnlyFromNamespaces(containersList, clusterImageExport.Spec.Namespaces)
+	}
+
+	if len(clusterImageExport.Spec.ExcludedNamespaces) > 0 {
+		containersList = shared.FilterOutWholeNamespaces(containersList, clusterImageExport.Spec.ExcludedNamespaces)
 	}
 
 	containersList = shared.RemoveDuplicates(containersList)
