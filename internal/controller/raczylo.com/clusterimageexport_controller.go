@@ -30,15 +30,15 @@ type ClusterImageExportReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimageexports,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimageexports/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimageexports/finalizers,verbs=update
+// +kubebuilder:rbac:groups=raczylo.com,resources=*,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=raczylo.com,resources=*/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=raczylo.com,resources=*/finalizers,verbs=update
 // additional RBAC rules
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimages,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 
 const clusterImageExportFinalizer = "finalizer.clusterimageexport.raczylo.com"
 

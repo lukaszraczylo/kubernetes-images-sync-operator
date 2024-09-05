@@ -21,3 +21,4 @@ rules:
       - clusterimages/status
     verbs:
       - get
+      - watch

@@ -25,3 +25,6 @@ rules:
       - clusterimageexports/status
     verbs:
       - get
+      - patch
+      - update
+      - watch

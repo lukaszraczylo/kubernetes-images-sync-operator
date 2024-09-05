@@ -29,12 +29,11 @@ type ClusterImageReconciler struct {
 	ActiveJobs      int
 }
 
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimages,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimages/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimages/finalizers,verbs=update
+// +kubebuilder:rbac:groups=raczylo.com,resources=*,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=raczylo.com,resources=*/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=raczylo.com,resources=*/finalizers,verbs=update
 // # additional RBAC rules - create and manage jobs
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=raczylo.com,resources=clusterimageexports,verbs=get;list;watch;update;patch
 func (r *ClusterImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 

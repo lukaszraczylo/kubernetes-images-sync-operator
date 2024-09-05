@@ -6,6 +6,18 @@ metadata:
   {{- include "chart.labels" . | nindent 4 }}
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - apps
   resources:
   - daemonsets
@@ -37,8 +49,7 @@ rules:
 - apiGroups:
   - raczylo.com
   resources:
-  - clusterimageexports
-  - clusterimages
+  - '*'
   verbs:
   - create
   - delete
@@ -50,13 +61,13 @@ rules:
 - apiGroups:
   - raczylo.com
   resources:
-  - clusterimageexports/finalizers
+  - '*/finalizers'
   verbs:
   - update
 - apiGroups:
   - raczylo.com
   resources:
-  - clusterimageexports/status
+  - '*/status'
   verbs:
   - get
   - patch

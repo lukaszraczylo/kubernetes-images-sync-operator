@@ -9,13 +9,8 @@ rules:
   - raczylo.com
   resources:
   - clusterimageexports
+  - clusterimageexports/status
   verbs:
   - get
   - list
   - watch
-- apiGroups:
-  - raczylo.com
-  resources:
-  - clusterimageexports/status
-  verbs:
-  - get
