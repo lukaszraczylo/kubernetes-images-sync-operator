@@ -30,7 +30,7 @@ RUN adduser --disabled-password --gecos "" --uid 1001 runner \
 WORKDIR /home/runner
 
 COPY storage.conf containers.conf registries.conf /home/runner/.config/containers/
-COPY requirements.txt export.py cleanup.py ./
+COPY requirements.txt export.py cleanup.py s3_utils.py ./
 USER runner
 RUN sudo chown -R runner:runner /home/runner/.config \
     && python3 -m pip install --no-cache-dir --only-binary=:all: -r requirements.txt

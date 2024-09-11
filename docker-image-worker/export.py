@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import os
+import sys
 import argparse
 from botocore.exceptions import ClientError
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from s3_utils import get_s3_client, parse_s3_path, add_common_arguments, validate_args
 
 def transfer_file(source, destination, use_role=False, role_name=None, aws_access_key_id=None, aws_secret_access_key=None, endpoint_url=None, region=None):
