@@ -155,6 +155,11 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 	if existingJob.Status.Succeeded > 0 {
 		clusterImage.Status.Progress = shared.STATUS_SUCCESS
 		r.ActiveJobs--
+		// Update the status before cleaning up the job
+		if err := r.Status().Update(ctx, clusterImage); err != nil {
+			l.Error(err, "unable to update ClusterImage status to SUCCESS")
+			return ctrl.Result{}, err
+		}
 		if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
 			l.Error(err, "unable to cleanup job and pods")
 			return ctrl.Result{}, err
@@ -163,6 +168,11 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 		if clusterImage.Status.RetryCount < 3 {
 			clusterImage.Status.Progress = shared.STATUS_RETRYING
 			clusterImage.Status.RetryCount++
+			// Update the status before cleaning up the job
+			if err := r.Status().Update(ctx, clusterImage); err != nil {
+				l.Error(err, "unable to update ClusterImage status for retry")
+				return ctrl.Result{}, err
+			}
 			if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
 				l.Error(err, "unable to cleanup failed job and pods for retry")
 				return ctrl.Result{}, err
@@ -172,6 +182,11 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 		} else {
 			clusterImage.Status.Progress = shared.STATUS_FAILED
 			r.ActiveJobs--
+			// Update the status before cleaning up the job
+			if err := r.Status().Update(ctx, clusterImage); err != nil {
+				l.Error(err, "unable to update ClusterImage status to FAILED")
+				return ctrl.Result{}, err
+			}
 			if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
 				l.Error(err, "unable to cleanup failed job and pods")
 				return ctrl.Result{}, err
@@ -192,8 +207,10 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 
 	return r.updateClusterImageExportStatus(ctx, clusterImage)
 }
-
 func (r *ClusterImageReconciler) cleanupJobAndPods(ctx context.Context, job *v1batch.Job) error {
+	// Add a short delay to allow status updates to propagate
+	time.Sleep(2 * time.Second)
+
 	// Delete the job
 	if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to delete job: %w", err)
@@ -409,24 +426,4 @@ func (r *ClusterImageReconciler) checkImageExists(ctx context.Context, clusterIm
 	}
 
 	return false, nil
-}
-
-func (r *ClusterImageReconciler) isJobStarted(ctx context.Context, job *v1batch.Job) (bool, error) {
-	podList := &v1.PodList{}
-	if err := r.List(ctx, podList, client.InNamespace(job.Namespace), client.MatchingLabels(job.Spec.Selector.MatchLabels)); err != nil {
-		return false, err
-	}
-
-	for _, pod := range podList.Items {
-		if pod.Status.Phase == v1.PodRunning {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func (r *ClusterImageReconciler) hasJobTimedOut(job *v1batch.Job) bool {
-	// Check if the job has been running for more than 5 minutes without starting
-	return time.Since(job.CreationTimestamp.Time) > 5*time.Minute
 }

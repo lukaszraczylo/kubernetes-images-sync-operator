@@ -1,5 +1,5 @@
 version: 1
 force:
   minor: 1
-  existing: false
+  existing: true
   strict: false
