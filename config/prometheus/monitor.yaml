@@ -3,10 +3,10 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   labels:
-    control-plane: cm-raczylo-com
+    control-plane: sa
     app.kubernetes.io/name: kubernetes-images-sync-operator
     app.kubernetes.io/managed-by: kustomize
-  name: cm-raczylo-com-metrics-monitor
+  name: sa-metrics-monitor
   namespace: system
 spec:
   endpoints:
@@ -27,4 +27,4 @@ spec:
         insecureSkipVerify: true
   selector:
     matchLabels:
-      control-plane: cm-raczylo-com
+      control-plane: sa

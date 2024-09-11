@@ -60,8 +60,9 @@ type ClusterImageExportSpec struct {
 	// Base path for the export - both file and S3
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=255
-	BasePath string                  `json:"basePath"`
-	Storage  ClusterImageStorageSpec `json:"storage"`
+	BasePath       string                  `json:"basePath"`
+	Storage        ClusterImageStorageSpec `json:"storage"`
+	JobAnnotations map[string]string       `json:"jobAnnotations,omitempty"`
 	// +kubebuilder:validation.Minimum=1
 	// +kubebuilder:validation.Maximum=100
 	MaxConcurrentJobs int `json:"maxConcurrentJobs"`

@@ -11,5 +11,5 @@ roleRef:
   name: raczylo-com-leader
 subjects:
   - kind: ServiceAccount
-    name: cm-raczylo-com
+    name: sa
     namespace: system

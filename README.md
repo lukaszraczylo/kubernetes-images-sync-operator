@@ -30,6 +30,8 @@ kind: ClusterImageExport
 metadata:
   name: backup-20240901
 spec:
+  jobAnnotations:
+    my-fancy-export: 11-09-2024
   # Excludes will remove all images with listed wording from the backup list
   # excludes:
   #   - nginx

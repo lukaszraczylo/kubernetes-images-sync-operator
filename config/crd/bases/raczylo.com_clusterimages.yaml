@@ -77,6 +77,10 @@ spec:
                 type: string
               imageNamespace:
                 type: string
+              jobAnnotations:
+                additionalProperties:
+                  type: string
+                type: object
               sha:
                 type: string
               storage:

@@ -2,10 +2,10 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    control-plane: cm-raczylo-com
+    control-plane: sa
     app.kubernetes.io/name: kubernetes-images-sync-operator
     app.kubernetes.io/managed-by: kustomize
-  name: cm-raczylo-com-metrics-service
+  name: sa-metrics-service
   namespace: system
 spec:
   ports:
@@ -14,4 +14,4 @@ spec:
       protocol: TCP
       targetPort: 8443
   selector:
-    control-plane: cm-raczylo-com
+    control-plane: sa

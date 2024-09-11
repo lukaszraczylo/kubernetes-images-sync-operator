@@ -75,6 +75,10 @@ spec:
                 items:
                   type: string
                 type: array
+              jobAnnotations:
+                additionalProperties:
+                  type: string
+                type: object
               maxConcurrentJobs:
                 type: integer
               name:

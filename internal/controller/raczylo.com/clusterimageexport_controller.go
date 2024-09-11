@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -138,6 +139,7 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 				Storage:        clusterImageExport.Spec.Storage.StorageTarget,
 				ExportName:     clusterImageExport.Name,
 				ExportPath:     clusterImageExport.Spec.BasePath,
+				JobAnnotations: clusterImageExport.Spec.JobAnnotations,
 			},
 		}
 
@@ -267,10 +269,12 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	}
 
 	jobParams := shared.JobParams{
-		Name:      normalisedImageName,
-		Namespace: clusterImageExport.Namespace,
-		Image:     shared.BACKUP_JOB_IMAGE,
-		Commands:  defaultCommands,
+		Name:           normalisedImageName,
+		Namespace:      clusterImageExport.Namespace,
+		Image:          shared.BACKUP_JOB_IMAGE,
+		Commands:       defaultCommands,
+		Annotations:    clusterImageExport.Spec.JobAnnotations,
+		ServiceAccount: os.Getenv("POD_SERVICE_ACCOUNT"),
 	}
 
 	cleanupJob := shared.CreateJob(jobParams, func(raczylocomv1.ClusterImageExport) []string { return nil })

@@ -1,32 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "chart.fullname" . }}-cm-raczylo-com
+  name: {{ include "chart.fullname" . }}-sa
   labels:
-    control-plane: cm-raczylo-com
+    control-plane: sa
   {{- include "chart.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.cmRaczyloCom.replicas }}
+  replicas: {{ .Values.sa.replicas }}
   selector:
     matchLabels:
-      control-plane: cm-raczylo-com
+      control-plane: sa
     {{- include "chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        control-plane: cm-raczylo-com
+        control-plane: sa
       {{- include "chart.selectorLabels" . | nindent 8 }}
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
       containers:
-      - args: {{- toYaml .Values.cmRaczyloCom.manager.args | nindent 8 }}
+      - args: {{- toYaml .Values.sa.manager.args | nindent 8 }}
         command:
         - /manager
         env:
+        - name: POD_SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: {{ quote .Values.kubernetesClusterDomain }}
-        image: {{ .Values.cmRaczyloCom.manager.image.repository }}:{{ .Values.cmRaczyloCom.manager.image.tag
+        image: {{ .Values.sa.manager.image.repository }}:{{ .Values.sa.manager.image.tag
           | default .Chart.AppVersion }}
         livenessProbe:
           httpGet:
@@ -41,10 +45,10 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        resources: {{- toYaml .Values.cmRaczyloCom.manager.resources | nindent 10 }}
-        securityContext: {{- toYaml .Values.cmRaczyloCom.manager.containerSecurityContext
-          | nindent 10 }}
+        resources: {{- toYaml .Values.sa.manager.resources | nindent 10 }}
+        securityContext: {{- toYaml .Values.sa.manager.containerSecurityContext | nindent
+          10 }}
       securityContext:
         runAsNonRoot: true
-      serviceAccountName: {{ include "chart.fullname" . }}-cm-raczylo-com
+      serviceAccountName: {{ include "chart.fullname" . }}-sa
       terminationGracePeriodSeconds: 10

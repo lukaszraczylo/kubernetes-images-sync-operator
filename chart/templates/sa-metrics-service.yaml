@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chart.fullname" . }}-sa-metrics-service
+  labels:
+    control-plane: sa
+  {{- include "chart.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.saMetricsService.type }}
+  selector:
+    control-plane: sa
+  {{- include "chart.selectorLabels" . | nindent 4 }}
+  ports:
+	{{- .Values.saMetricsService.ports | toYaml | nindent 2 }}

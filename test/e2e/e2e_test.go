@@ -76,17 +76,17 @@ var _ = Describe("controller", Ordered, func() {
 			_, err = utils.Run(cmd)
 			ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
-			By("deploying the cm-raczylo-com")
+			By("deploying the sa")
 			cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectimage))
 			_, err = utils.Run(cmd)
 			ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
-			By("validating that the cm-raczylo-com pod is running as expected")
+			By("validating that the sa pod is running as expected")
 			verifyControllerUp := func() error {
 				// Get pod name
 
 				cmd = exec.Command("kubectl", "get",
-					"pods", "-l", "control-plane=cm-raczylo-com",
+					"pods", "-l", "control-plane=sa",
 					"-o", "go-template={{ range .items }}"+
 						"{{ if not .metadata.deletionTimestamp }}"+
 						"{{ .metadata.name }}"+
@@ -101,7 +101,7 @@ var _ = Describe("controller", Ordered, func() {
 					return fmt.Errorf("expect 1 controller pods running, but got %d", len(podNames))
 				}
 				controllerPodName = podNames[0]
-				ExpectWithOffset(2, controllerPodName).Should(ContainSubstring("cm-raczylo-com"))
+				ExpectWithOffset(2, controllerPodName).Should(ContainSubstring("sa"))
 
 				// Validate pod status
 				cmd = exec.Command("kubectl", "get",

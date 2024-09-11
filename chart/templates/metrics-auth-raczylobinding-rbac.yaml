@@ -10,5 +10,5 @@ roleRef:
   name: '{{ include "chart.fullname" . }}-metrics-auth-raczylo'
 subjects:
 - kind: ServiceAccount
-  name: '{{ include "chart.fullname" . }}-cm-raczylo-com'
+  name: '{{ include "chart.fullname" . }}-sa'
   namespace: '{{ .Release.Namespace }}'

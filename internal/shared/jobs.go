@@ -14,10 +14,12 @@ import (
 type JobParams struct {
 	Name            string
 	Namespace       string
+	Annotations     map[string]string
 	Image           string
 	Commands        []string
 	EnvVars         []corev1.EnvVar
 	OwnerReferences []metav1.OwnerReference
+	ServiceAccount  string
 }
 
 func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job {
@@ -29,6 +31,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 			Labels: map[string]string{
 				"app": "image-export",
 			},
+			Annotations: params.Annotations,
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
@@ -36,9 +39,11 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 					Labels: map[string]string{
 						"app": "image-export",
 					},
+					Annotations: params.Annotations,
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyOnFailure,
+					RestartPolicy:      corev1.RestartPolicyOnFailure,
+					ServiceAccountName: params.ServiceAccount,
 					Containers: []corev1.Container{
 						{
 							Name:  "export",

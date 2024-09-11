@@ -8,5 +8,5 @@ roleRef:
   name: metrics-auth-raczylo
 subjects:
   - kind: ServiceAccount
-    name: cm-raczylo-com
+    name: sa
     namespace: system
