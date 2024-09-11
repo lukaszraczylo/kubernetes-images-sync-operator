@@ -87,6 +87,17 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, err
 	}
 
+	if len(clusterImageExport.Spec.AdditionalImages) > 0 {
+		for _, image := range clusterImageExport.Spec.AdditionalImages {
+			img, err := shared.ProcessContainerName(image)
+			if err != nil {
+				l.Error(err, "unable to process additional image", "image", image)
+				continue
+			}
+			fullImagesList.Containers = append(fullImagesList.Containers, img)
+		}
+	}
+
 	clusterImageExport.Status.Progress = shared.STATUS_RUNNING
 	if err := r.Status().Update(ctx, clusterImageExport); err != nil {
 		l.Error(err, "unable to update ClusterImageExport status to RUNNING")

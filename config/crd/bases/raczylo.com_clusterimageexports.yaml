@@ -53,6 +53,10 @@ spec:
           spec:
             description: ClusterImageExportSpec defines the desired state of ClusterImageExport
             properties:
+              additionalImages:
+                items:
+                  type: string
+                type: array
               basePath:
                 description: Base path for the export - both file and S3
                 maxLength: 255

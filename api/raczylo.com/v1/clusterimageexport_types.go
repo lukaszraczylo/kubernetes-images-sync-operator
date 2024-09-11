@@ -69,7 +69,8 @@ type ClusterImageExportSpec struct {
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// +kubebuilder:validation.Minimum=1
 	// +kubebuilder:validation.Maximum=100
-	MaxConcurrentJobs int `json:"maxConcurrentJobs"`
+	MaxConcurrentJobs int      `json:"maxConcurrentJobs"`
+	AdditionalImages  []string `json:"additionalImages,omitempty"`
 }
 
 // ClusterImageExportStatus defines the observed state of ClusterImageExport

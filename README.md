@@ -49,6 +49,9 @@ spec:
   # excludedNamespaces:
   #  - my-awesome-namespace
 
+  additionalImages:
+    - minio/minio:RELEASE.2024-09-09T16-59-28Z
+
   basePath: /images # base path in the target directory
   storage:
     target: S3 # file backup is not ready yet
