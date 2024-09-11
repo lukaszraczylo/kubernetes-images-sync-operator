@@ -229,7 +229,8 @@ release-chart:
 	cd ../helm-charts/; git add -A charts/packages; git fix; git push;
 	cd ../helm-charts/charts/${CHART_NAME}; cr upload --config ../../chart-releaser.yaml --skip-existing;
 	cd ../helm-charts/charts/${CHART_NAME}; rm -fr .cr-index; mkdir .cr-index; cr index --config ../../chart-releaser.yaml; cp .cr-index/index.yaml ../../index.yaml;
-	../helm-charts; git fix; git push
+	echo "index.yaml updated"
+	cd ../helm-charts; git fix; git push
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary

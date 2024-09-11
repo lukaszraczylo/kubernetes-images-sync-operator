@@ -1,6 +1,6 @@
 # kubernetes-images-sync-operator
 
-Kubernetes operator backing up images into the local / S3 compatible storage
+Kubernetes operator backing up images into the local / S3 compatible storage.
 
 ## Description
 
@@ -62,6 +62,10 @@ spec:
     # roleARN: my-awesome-role # Instead of picking the default role, use the specified one
   maxConcurrentJobs: 1
 ```
+
+## Worth knowing
+
+* If you provide roleARN, you also need to set the useRole to true.
 
 #### Random fluff
 
