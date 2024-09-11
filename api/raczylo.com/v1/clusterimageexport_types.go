@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -60,9 +61,12 @@ type ClusterImageExportSpec struct {
 	// Base path for the export - both file and S3
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=255
-	BasePath       string                  `json:"basePath"`
-	Storage        ClusterImageStorageSpec `json:"storage"`
-	JobAnnotations map[string]string       `json:"jobAnnotations,omitempty"`
+	BasePath string                  `json:"basePath"`
+	Storage  ClusterImageStorageSpec `json:"storage"`
+	// +kubebuilder:validation:Optional
+	JobAnnotations map[string]string `json:"jobAnnotations,omitempty"`
+	// +kubebuilder:validation:Optional
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	// +kubebuilder:validation.Minimum=1
 	// +kubebuilder:validation.Maximum=100
 	MaxConcurrentJobs int `json:"maxConcurrentJobs"`

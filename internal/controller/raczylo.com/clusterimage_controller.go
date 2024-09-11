@@ -36,6 +36,8 @@ type ClusterImageReconciler struct {
 // # additional RBAC rules - create and manage jobs
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+// add access to secrets
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 func (r *ClusterImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 
@@ -229,12 +231,13 @@ func (r *ClusterImageReconciler) createBackupJob(ctx context.Context, clusterIma
 	defaultCommands = append(defaultCommands, "rm -f /tmp/"+normalisedImageName+".tar")
 
 	jobParams := shared.JobParams{
-		Name:           fmt.Sprintf("img-export-%s", clusterImage.Name),
-		Namespace:      clusterImage.Namespace,
-		Image:          shared.BACKUP_JOB_IMAGE,
-		Annotations:    clusterImage.Spec.JobAnnotations,
-		Commands:       defaultCommands,
-		ServiceAccount: os.Getenv("POD_SERVICE_ACCOUNT"),
+		Name:             fmt.Sprintf("img-export-%s", clusterImage.Name),
+		Namespace:        clusterImage.Namespace,
+		Image:            shared.BACKUP_JOB_IMAGE,
+		Annotations:      clusterImage.Spec.JobAnnotations,
+		Commands:         defaultCommands,
+		ServiceAccount:   os.Getenv("POD_SERVICE_ACCOUNT"),
+		ImagePullSecrets: clusterImage.Spec.ImagePullSecrets,
 		OwnerReferences: []metav1.OwnerReference{
 			{
 				APIVersion:         clusterImage.APIVersion,

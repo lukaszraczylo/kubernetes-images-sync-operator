@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,15 +29,18 @@ import (
 // +kubebuilder:printcolumn:name="Path",type="string",JSONPath=".spec.exportPath"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type ClusterImageSpec struct {
-	Image          string            `json:"image,omitempty"`
-	Tag            string            `json:"tag,omitempty"`
-	Sha            string            `json:"sha,omitempty"`
-	FullName       string            `json:"fullName,omitempty"` // Because I'm lazy and it's easier to pull that way
-	Storage        string            `json:"storage,omitempty"`
-	ExportName     string            `json:"exportName"`
-	ExportPath     string            `json:"exportPath,omitempty"`
-	ImageNamespace string            `json:"imageNamespace,omitempty"`
+	Image          string `json:"image,omitempty"`
+	Tag            string `json:"tag,omitempty"`
+	Sha            string `json:"sha,omitempty"`
+	FullName       string `json:"fullName,omitempty"` // Because I'm lazy and it's easier to pull that way
+	Storage        string `json:"storage,omitempty"`
+	ExportName     string `json:"exportName"`
+	ExportPath     string `json:"exportPath,omitempty"`
+	ImageNamespace string `json:"imageNamespace,omitempty"`
+	// +kubebuilder:validation:Optional
 	JobAnnotations map[string]string `json:"jobAnnotations,omitempty"`
+	// +kubebuilder:validation:Optional
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 }
 
 // ClusterImageStatus defines the observed state of ClusterImage
