@@ -45,7 +45,7 @@ const clusterImageExportFinalizer = "finalizer.clusterimageexport.raczylo.com"
 
 func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
-	l.Info("Reconciling ClusterImageExport")
+	// l.Info("Reconciling ClusterImageExport")
 
 	// Fetch the ClusterImageExport instance
 	clusterImageExport := &raczylocomv1.ClusterImageExport{}
@@ -224,7 +224,7 @@ func (r *ClusterImageExportReconciler) listImagesInCluster(ctx context.Context, 
 	}
 
 	containersList = shared.RemoveDuplicates(containersList)
-	l.Info("List of containers in the cluster", "containers", containersList)
+	// l.Info("List of containers in the cluster", "containers", containersList)
 
 	return containersList, nil
 }
@@ -270,12 +270,13 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	}
 
 	jobParams := shared.JobParams{
-		Name:           normalisedImageName,
-		Namespace:      clusterImageExport.Namespace,
-		Image:          shared.BACKUP_JOB_IMAGE,
-		Commands:       defaultCommands,
-		Annotations:    clusterImageExport.Spec.JobAnnotations,
-		ServiceAccount: os.Getenv("POD_SERVICE_ACCOUNT"),
+		Name:             normalisedImageName,
+		Namespace:        clusterImageExport.Namespace,
+		Image:            shared.BACKUP_JOB_IMAGE,
+		Commands:         defaultCommands,
+		Annotations:      clusterImageExport.Spec.JobAnnotations,
+		ServiceAccount:   os.Getenv("POD_SERVICE_ACCOUNT"),
+		ImagePullSecrets: clusterImageExport.Spec.ImagePullSecrets,
 	}
 
 	cleanupJob := shared.CreateJob(jobParams, func(raczylocomv1.ClusterImageExport) []string { return nil })

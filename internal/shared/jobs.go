@@ -24,7 +24,28 @@ type JobParams struct {
 }
 
 func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job {
-	return &batchv1.Job{
+	volumes := []corev1.Volume{}
+	volumeMounts := []corev1.VolumeMount{}
+
+	if len(params.ImagePullSecrets) > 0 {
+		for i, secret := range params.ImagePullSecrets {
+			volumes = append(volumes, corev1.Volume{
+				Name: fmt.Sprintf("secret-%d", i),
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: secret.Name,
+					},
+				},
+			})
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      fmt.Sprintf("secret-%d", i),
+				MountPath: fmt.Sprintf("/home/runner/.docker-secret-%d", i),
+				ReadOnly:  true,
+			})
+		}
+	}
+
+	j := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            params.Name,
 			Namespace:       params.Namespace,
@@ -46,17 +67,16 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 					RestartPolicy:      corev1.RestartPolicyOnFailure,
 					ServiceAccountName: params.ServiceAccount,
 					ImagePullSecrets:   params.ImagePullSecrets,
+					Volumes:            volumes,
 					Containers: []corev1.Container{
 						{
-							Name:  "export",
-							Image: params.Image,
-							TTY:   true,
-							Command: []string{
-								"bash",
-								"-c",
-								strings.Join(params.Commands, " && "),
-							},
-							Env: params.EnvVars,
+							Name:         "exporter",
+							Image:        params.Image,
+							TTY:          true,
+							Command:      []string{},
+							Args:         []string{"/bin/bash", "-c", strings.Join(params.Commands, " && ")},
+							VolumeMounts: volumeMounts,
+							Env:          params.EnvVars,
 							SecurityContext: &corev1.SecurityContext{
 								Privileged: pointer.Bool(true),
 							},
@@ -66,6 +86,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 			},
 		},
 	}
+	return j
 }
 
 func SetupS3Params(s3Config raczylocomv1.ClusterImageStorageS3) []string {

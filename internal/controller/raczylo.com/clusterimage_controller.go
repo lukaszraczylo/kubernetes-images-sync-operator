@@ -82,7 +82,7 @@ func (r *ClusterImageReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	case shared.STATUS_SUCCESS, shared.STATUS_FAILED, shared.STATUS_PRESENT:
 		return ctrl.Result{}, nil // No further action needed
 	default:
-		l.Info("Unexpected ClusterImage status", "Status", clusterImage.Status.Progress)
+		// l.Info("Unexpected ClusterImage status", "Status", clusterImage.Status.Progress)
 		return ctrl.Result{}, nil
 	}
 }
@@ -188,7 +188,7 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 		}
 	}
 
-	l.Info("Reconciling ClusterImage completed", "Name", clusterImage.Name, "Status", clusterImage.Status.Progress)
+	// l.Info("Reconciling ClusterImage completed", "Name", clusterImage.Name, "Status", clusterImage.Status.Progress)
 
 	return r.updateClusterImageExportStatus(ctx, clusterImage)
 }
