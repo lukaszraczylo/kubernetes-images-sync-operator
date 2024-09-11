@@ -63,16 +63,18 @@ func ProcessContainerName(containerName string) (Container, error) {
 		return cnt, nil
 	}
 
-	cnt := Container{}
+	cnt := Container{FullName: containerName}
 	parts := strings.Split(containerName, "@")
 	if len(parts) > 2 {
 		return cnt, fmt.Errorf("invalid container name format: %s", containerName)
 	}
+
 	imageAndTag := strings.SplitN(parts[0], ":", 2)
 	cnt.Image = imageAndTag[0]
 	if len(imageAndTag) == 2 {
 		cnt.Tag = imageAndTag[1]
 	}
+
 	if len(parts) == 2 {
 		shaParts := strings.SplitN(parts[1], ":", 2)
 		if len(shaParts) != 2 || (shaParts[0] != "sha" && shaParts[0] != "sha256") {
@@ -80,10 +82,11 @@ func ProcessContainerName(containerName string) (Container, error) {
 		}
 		cnt.Sha = parts[1]
 	}
-	cnt.FullName = containerName
+
 	if cnt.Sha == "" && cnt.Tag == "" {
 		cnt.Tag = "latest"
 	}
+
 	if cnt.Image == "" {
 		return cnt, fmt.Errorf("image name is required")
 	}
@@ -137,17 +140,26 @@ func ListAndProcessResources[T K8sResource, L client.ObjectList](ctx context.Con
 	var wg sync.WaitGroup
 	errChan := make(chan error, 1)
 	semaphore := make(chan struct{}, 10) // Limit concurrent goroutines
+	var mu sync.Mutex                    // Mutex to protect containersList
 
 	processItem := func(item K8sResource, namespace string) {
 		defer wg.Done()
 		semaphore <- struct{}{}
 		defer func() { <-semaphore }()
-		if err := processContainers(ctx, item, namespace, containersList); err != nil {
+
+		localContainersList := &ContainersList{}
+		if err := processContainers(ctx, item, namespace, localContainersList); err != nil {
 			select {
 			case errChan <- err:
 			default:
 			}
+			return
 		}
+
+		// Safely append the local results to the main containersList
+		mu.Lock()
+		containersList.Containers = append(containersList.Containers, localContainersList.Containers...)
+		mu.Unlock()
 	}
 
 	switch typedList := any(list).(type) {
