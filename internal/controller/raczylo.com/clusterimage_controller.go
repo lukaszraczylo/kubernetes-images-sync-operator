@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +29,7 @@ type ClusterImageReconciler struct {
 	Scheme          *runtime.Scheme
 	MaxParallelJobs int
 	ActiveJobs      int
+	KubeClient      *kubernetes.Clientset
 }
 
 // +kubebuilder:rbac:groups=raczylo.com,resources=*,verbs=get;list;watch;create;update;patch;delete
@@ -153,12 +155,16 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 	if existingJob.Status.Succeeded > 0 {
 		clusterImage.Status.Progress = shared.STATUS_SUCCESS
 		r.ActiveJobs--
+		if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
+			l.Error(err, "unable to cleanup job and pods")
+			return ctrl.Result{}, err
+		}
 	} else if existingJob.Status.Failed > 0 {
 		if clusterImage.Status.RetryCount < 3 {
 			clusterImage.Status.Progress = shared.STATUS_RETRYING
 			clusterImage.Status.RetryCount++
-			if err := r.Delete(ctx, existingJob); err != nil {
-				l.Error(err, "unable to delete failed job for retry")
+			if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
+				l.Error(err, "unable to cleanup failed job and pods for retry")
 				return ctrl.Result{}, err
 			}
 			r.ActiveJobs--
@@ -166,6 +172,10 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 		} else {
 			clusterImage.Status.Progress = shared.STATUS_FAILED
 			r.ActiveJobs--
+			if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
+				l.Error(err, "unable to cleanup failed job and pods")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -180,29 +190,25 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 		return ctrl.Result{}, err
 	}
 
-	// Delete the completed job
-	if clusterImage.Status.Progress == shared.STATUS_SUCCESS || clusterImage.Status.Progress == shared.STATUS_FAILED {
-		if err := r.Delete(ctx, existingJob); err != nil && !errors.IsNotFound(err) {
-			l.Error(err, "unable to delete completed job")
-			return ctrl.Result{}, err
-		}
-	}
-
-	// l.Info("Reconciling ClusterImage completed", "Name", clusterImage.Name, "Status", clusterImage.Status.Progress)
-
 	return r.updateClusterImageExportStatus(ctx, clusterImage)
 }
 
-func (r *ClusterImageReconciler) cleanupJobPods(ctx context.Context, job *v1batch.Job) error {
-	podList := &v1.PodList{}
-	if err := r.List(ctx, podList, client.InNamespace(job.Namespace), client.MatchingLabels(job.Spec.Selector.MatchLabels)); err != nil {
-		return err
+func (r *ClusterImageReconciler) cleanupJobAndPods(ctx context.Context, job *v1batch.Job) error {
+	// Delete the job
+	if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete job: %w", err)
 	}
 
-	for _, pod := range podList.Items {
-		if err := r.Delete(ctx, &pod); err != nil && !errors.IsNotFound(err) {
-			return err
-		}
+	// Delete the associated pods
+	labelSelector := metav1.LabelSelector{
+		MatchLabels: job.Spec.Selector.MatchLabels,
+	}
+	listOptions := metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(&labelSelector),
+	}
+
+	if err := r.KubeClient.CoreV1().Pods(job.Namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, listOptions); err != nil {
+		return fmt.Errorf("failed to delete pods: %w", err)
 	}
 
 	return nil
@@ -355,12 +361,19 @@ func (r *ClusterImageReconciler) handleJobRestarts(ctx context.Context, job *v1b
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterImageReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Create a Kubernetes clientset
+	var err error
+	config := mgr.GetConfig()
+	r.KubeClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("unable to create Kubernetes client: %w", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&raczylocomv1.ClusterImage{}).
 		Owns(&v1batch.Job{}).
 		Complete(r)
 }
-
 func (r *ClusterImageReconciler) removeAllJobsAndContainers(ctx context.Context, namespace string) error {
 	jobList := &v1batch.JobList{}
 	if err := r.List(ctx, jobList, client.InNamespace(namespace), client.MatchingLabels{"app": "image-export"}); err != nil {
