@@ -3,7 +3,6 @@ package raczylocom
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -259,7 +258,7 @@ func (r *ClusterImageReconciler) createBackupJob(ctx context.Context, clusterIma
 		Image:            shared.BACKUP_JOB_IMAGE,
 		Annotations:      clusterImage.Spec.JobAnnotations,
 		Commands:         defaultCommands,
-		ServiceAccount:   os.Getenv("POD_SERVICE_ACCOUNT"),
+		ServiceAccount:   "",
 		ImagePullSecrets: clusterImage.Spec.ImagePullSecrets,
 		OwnerReferences: []metav1.OwnerReference{
 			{

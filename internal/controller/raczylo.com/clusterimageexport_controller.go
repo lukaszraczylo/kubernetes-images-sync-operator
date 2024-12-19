@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -286,7 +285,7 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 		Image:            shared.BACKUP_JOB_IMAGE,
 		Commands:         defaultCommands,
 		Annotations:      clusterImageExport.Spec.JobAnnotations,
-		ServiceAccount:   os.Getenv("POD_SERVICE_ACCOUNT"),
+		ServiceAccount:   "",
 		ImagePullSecrets: clusterImageExport.Spec.ImagePullSecrets,
 	}
 

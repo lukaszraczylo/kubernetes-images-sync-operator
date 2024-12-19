@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	raczylocomv1 "github.com/lukaszraczylo/kubernetes-images-sync-operator/api/raczylo.com/v1"
@@ -19,7 +20,7 @@ type JobParams struct {
 	Commands         []string
 	EnvVars          []corev1.EnvVar
 	OwnerReferences  []metav1.OwnerReference
-	ServiceAccount   string
+	ServiceAccount   string // Can be empty to use controller's service account
 	ImagePullSecrets []corev1.LocalObjectReference
 }
 
@@ -45,6 +46,11 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 		}
 	}
 
+	serviceAccount := params.ServiceAccount
+	if serviceAccount == "" {
+		serviceAccount = os.Getenv("POD_SERVICE_ACCOUNT")
+	}
+
 	j := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            params.Name,
@@ -65,7 +71,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 				},
 				Spec: corev1.PodSpec{
 					RestartPolicy:      corev1.RestartPolicyOnFailure,
-					ServiceAccountName: params.ServiceAccount,
+					ServiceAccountName: serviceAccount,
 					ImagePullSecrets:   params.ImagePullSecrets,
 					Volumes:            volumes,
 					Containers: []corev1.Container{
