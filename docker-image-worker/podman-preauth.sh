@@ -3,6 +3,8 @@ set -e
 
 PODMAN_AUTH_FILE="/home/runner/.config/containers/auth.json"
 
+# Sleep for a 1-5 seconds to avoid ddosing the registry with auth requests
+sleep $((1 + RANDOM % 5))
 # Initialize the auth file if it doesn't exist or is empty
 mkdir -p $(dirname $PODMAN_AUTH_FILE)
 if [ ! -s "$PODMAN_AUTH_FILE" ]; then
