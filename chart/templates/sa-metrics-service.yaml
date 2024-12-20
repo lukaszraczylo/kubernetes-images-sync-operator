@@ -9,6 +9,6 @@ spec:
   type: {{ .Values.saMetricsService.type }}
   selector:
     control-plane: sa
-  {{- include "chart.selectorLabels" . | nindent 4 }}
+    {{- include "chart.selectorLabels" . | nindent 4 }}
   ports:
-	{{- .Values.saMetricsService.ports | toYaml | nindent 2 }}
+  {{- .Values.saMetricsService.ports | toYaml | nindent 2 }}

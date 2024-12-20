@@ -48,7 +48,6 @@ spec:
         resources: {{- toYaml .Values.sa.manager.resources | nindent 10 }}
         securityContext: {{- toYaml .Values.sa.manager.containerSecurityContext | nindent
           10 }}
-      securityContext:
-        runAsNonRoot: true
+      securityContext: {{- toYaml .Values.sa.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "chart.fullname" . }}-sa
       terminationGracePeriodSeconds: 10
