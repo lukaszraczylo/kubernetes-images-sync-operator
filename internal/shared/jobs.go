@@ -62,6 +62,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 			Annotations: params.Annotations,
 		},
 		Spec: batchv1.JobSpec{
+			TTLSecondsAfterFinished: pointer.Int32(300),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{

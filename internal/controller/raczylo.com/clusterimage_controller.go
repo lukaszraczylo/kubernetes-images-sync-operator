@@ -138,12 +138,27 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Job doesn't exist, set status back to PENDING
-			clusterImage.Status.Progress = shared.STATUS_PENDING
+			l.Info("Job not found; assuming it completed successfully", "job", jobName)
+
+			if clusterImage.Status.Progress == shared.STATUS_SUCCESS || clusterImage.Status.Progress == shared.STATUS_PRESENT {
+				// Job completed and status is already SUCCESS or PRESENT
+				return ctrl.Result{}, nil
+			}
+
+			// If we have retries left, consider retrying
+			if clusterImage.Status.RetryCount < 3 {
+				clusterImage.Status.Progress = shared.STATUS_RETRYING
+				clusterImage.Status.RetryCount++
+			} else {
+				// Exceeded retries; mark as FAILED
+				clusterImage.Status.Progress = shared.STATUS_FAILED
+			}
+
 			if err := r.Status().Update(ctx, clusterImage); err != nil {
-				l.Error(err, "unable to update ClusterImage status back to PENDING")
+				l.Error(err, "unable to update ClusterImage status after job not found")
 				return ctrl.Result{}, err
 			}
+
 			return ctrl.Result{Requeue: true}, nil
 		}
 		l.Error(err, "unable to check for existing job")
