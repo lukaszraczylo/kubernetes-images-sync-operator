@@ -3,11 +3,13 @@ import os
 import sys
 import argparse
 from botocore.exceptions import ClientError
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from s3_utils import get_s3_client, parse_s3_path, add_common_arguments, validate_args
 
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
 def remove_directory(destination, use_role=False, role_name=None, aws_access_key_id=None, aws_secret_access_key=None, endpoint_url=None, region=None):
     """
     Remove a directory recursively, either local or in an S3 bucket
