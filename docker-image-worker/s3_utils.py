@@ -20,7 +20,7 @@ def get_s3_client(use_role=False, role_name=None, use_current_role=False, aws_ac
     
     if endpoint_url:
         client_kwargs['endpoint_url'] = endpoint_url
-    elif region:
+    if region:
         client_kwargs['region_name'] = region
 
     # Check for AWS Web Identity token

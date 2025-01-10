@@ -118,7 +118,7 @@ func SetupS3Params(s3Config raczylocomv1.ClusterImageStorageS3) []string {
 		params = append(params, fmt.Sprintf("--endpoint_url='%s'", s3Config.Endpoint))
 	}
 	if s3Config.Region != "" {
-		params = append(params, fmt.Sprintf("--region=%s", s3Config.Region))
+		params = append(params, fmt.Sprintf("--region='%s'", s3Config.Region))
 	}
 	return params
 }

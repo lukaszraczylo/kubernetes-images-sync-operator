@@ -44,7 +44,7 @@ func (r *ClusterImageExportReconciler) InjectPodAnnotations(annotations map[stri
 // +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 
-const clusterImageExportFinalizer = "finalizer.clusterimageexport.raczylo.com"
+const clusterImageExportFinalizer = "raczylo.com/clusterimageexport-finalizer"
 
 func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
@@ -308,7 +308,7 @@ func (r *ClusterImageExportReconciler) handleDeletion(ctx context.Context, clust
 			// Continue with deletion even if cleanup fails
 		}
 
-		// Check if cleanup job already exists
+		// Delete existing cleanup job if it exists
 		jobName := "cleanup-" + shared.NormalizeImageName(clusterImageExport.Name)
 		existingJob := &batchv1.Job{}
 		err := r.Get(ctx, client.ObjectKey{
@@ -317,15 +317,20 @@ func (r *ClusterImageExportReconciler) handleDeletion(ctx context.Context, clust
 		}, existingJob)
 
 		if err == nil {
-			// Job exists, don't create a new one
-			l.Info("Cleanup job already exists, skipping creation", "job", jobName)
-		} else if errors.IsNotFound(err) {
-			// Job doesn't exist, create it
-			r.runCleanupJob(ctx, clusterImageExport)
-		} else {
+			// Job exists, delete it
+			if err := r.Delete(ctx, existingJob); err != nil && !errors.IsNotFound(err) {
+				l.Error(err, "Failed to delete existing cleanup job")
+				// Continue with deletion even if cleanup job deletion fails
+			} else {
+				l.Info("Successfully deleted existing cleanup job", "job", jobName)
+			}
+		} else if !errors.IsNotFound(err) {
 			// Unexpected error, log but continue
 			l.Error(err, "Error checking for existing cleanup job")
 		}
+
+		// Create new cleanup job
+		r.runCleanupJob(ctx, clusterImageExport)
 
 		// Remove the finalizer regardless of cleanup job status
 		controllerutil.RemoveFinalizer(clusterImageExport, clusterImageExportFinalizer)
