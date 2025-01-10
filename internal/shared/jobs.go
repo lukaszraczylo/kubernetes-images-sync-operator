@@ -102,13 +102,17 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 func SetupS3Params(s3Config raczylocomv1.ClusterImageStorageS3) []string {
 	params := []string{}
 	if s3Config.UseRole {
-		params = append(params, "--use_role")
+		if s3Config.RoleARN != "" {
+			// Use specific role
+			params = append(params, "--use_role")
+			params = append(params, fmt.Sprintf("--role_name='%s'", s3Config.RoleARN))
+		} else {
+			// Use current role from Kubernetes service account
+			params = append(params, "--use_current_role")
+		}
 	} else {
 		params = append(params, fmt.Sprintf("--aws_access_key_id='%s'", s3Config.AccessKey))
 		params = append(params, fmt.Sprintf("--aws_secret_access_key='%s'", s3Config.SecretKey))
-	}
-	if s3Config.RoleARN != "" {
-		params = append(params, fmt.Sprintf("--role_name='%s'", s3Config.RoleARN))
 	}
 	if s3Config.Endpoint != "" {
 		params = append(params, fmt.Sprintf("--endpoint_url='%s'", s3Config.Endpoint))

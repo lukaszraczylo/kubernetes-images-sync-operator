@@ -31,7 +31,7 @@ def log_error_details(e):
         logger.error(f"Non-AWS Error: {str(e)}")
 
 @retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
-def transfer_file(source, destination, use_role=False, role_name=None, aws_access_key_id=None, aws_secret_access_key=None, endpoint_url=None, region=None):
+def transfer_file(source, destination, use_role=False, role_name=None, use_current_role=False, aws_access_key_id=None, aws_secret_access_key=None, endpoint_url=None, region=None):
     """
     Transfer a file from a local source to either a local destination or an S3 bucket
     """
@@ -43,7 +43,7 @@ def transfer_file(source, destination, use_role=False, role_name=None, aws_acces
         # Uploading to S3
         try:
             logger.info(f"Attempting to upload {source} to {destination}")
-            s3_client = get_s3_client(use_role, role_name, aws_access_key_id, aws_secret_access_key, endpoint_url, region)
+            s3_client = get_s3_client(use_role, role_name, use_current_role, aws_access_key_id, aws_secret_access_key, endpoint_url, region)
             bucket, s3_key = parse_s3_path(destination)
             
             try:
@@ -92,6 +92,7 @@ if __name__ == "__main__":
         args.destination,
         args.use_role,
         args.role_name,
+        args.use_current_role,
         args.aws_access_key_id,
         args.aws_secret_access_key,
         args.endpoint_url,

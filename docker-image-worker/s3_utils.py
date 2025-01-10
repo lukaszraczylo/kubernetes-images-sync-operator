@@ -4,7 +4,7 @@ from botocore.exceptions import ClientError
 import os
 import logging
 
-def get_s3_client(use_role=False, role_name=None, aws_access_key_id=None, aws_secret_access_key=None, endpoint_url=None, region=None):
+def get_s3_client(use_role=False, role_name=None, use_current_role=False, aws_access_key_id=None, aws_secret_access_key=None, endpoint_url=None, region=None):
     """
     Create and return an S3 client based on the provided authentication method, endpoint, and region.
     """
@@ -48,9 +48,9 @@ def get_s3_client(use_role=False, role_name=None, aws_access_key_id=None, aws_se
             logger.info(f"Current identity: {identity['Arn']}")
             
             assumed_role_object = sts_client.assume_role(
-            RoleArn=f"arn:aws:iam::{boto3.client('sts').get_caller_identity()['Account']}:role/{role_name}",
-            RoleSessionName="AssumeRoleSession"
-        )
+                RoleArn=f"arn:aws:iam::{boto3.client('sts').get_caller_identity()['Account']}:role/{role_name}",
+                RoleSessionName="AssumeRoleSession"
+            )
             credentials = assumed_role_object['Credentials']
             client_kwargs['aws_access_key_id'] = credentials['AccessKeyId']
             client_kwargs['aws_secret_access_key'] = credentials['SecretAccessKey']
@@ -58,6 +58,19 @@ def get_s3_client(use_role=False, role_name=None, aws_access_key_id=None, aws_se
             return boto3.client('s3', **client_kwargs)
         except Exception as e:
             logger.error(f"Failed to assume role {role_name}: {str(e)}")
+            raise
+    elif use_current_role:
+        # Use the current role (e.g., from Kubernetes service account)
+        logger.info("Using current role from environment")
+        try:
+            client = boto3.client('s3', **client_kwargs)
+            # Try to get caller identity to verify credentials
+            sts = boto3.client('sts')
+            identity = sts.get_caller_identity()
+            logger.info(f"Successfully authenticated using current role: {identity['Arn']}")
+            return client
+        except Exception as e:
+            logger.error(f"Failed to use current role: {str(e)}")
             raise
     else:
         # Use default credentials (environment, instance profile, or pod service account)
@@ -86,8 +99,10 @@ def add_common_arguments(parser):
     """
     Add common command-line arguments to an ArgumentParser object
     """
-    parser.add_argument("--use_role", action="store_true", help="Use IAM role for authentication")
-    parser.add_argument("--role_name", help="The name of the IAM role to assume")
+    auth_group = parser.add_mutually_exclusive_group()
+    auth_group.add_argument("--use_role", action="store_true", help="Use IAM role for authentication")
+    auth_group.add_argument("--use_current_role", action="store_true", help="Use current AWS role (e.g. from Kubernetes service account)")
+    parser.add_argument("--role_name", help="The name of the IAM role to assume (only when --use_role is set)")
     parser.add_argument("--aws_access_key_id", help="AWS access key ID")
     parser.add_argument("--aws_secret_access_key", help="AWS secret access key")
     parser.add_argument("--endpoint_url", help="S3-compatible endpoint URL")
@@ -99,9 +114,15 @@ def validate_args(args, parser):
     """
     if args.destination.startswith('s3://'):
         # Check for conflicting auth methods
-        if args.use_role and args.role_name and (args.aws_access_key_id or args.aws_secret_access_key):
-            parser.error("When using a specific role (--role_name), access key and secret should not be specified.")
+        if args.use_role and not args.role_name:
+            parser.error("--role_name is required when using --use_role")
+            
+        if args.role_name and not args.use_role:
+            parser.error("--role_name can only be used with --use_role")
+
+        if args.use_current_role and (args.aws_access_key_id or args.aws_secret_access_key):
+            parser.error("When using current role (--use_current_role), access key and secret should not be specified")
 
         # If using explicit credentials, require both key and secret
         if (args.aws_access_key_id or args.aws_secret_access_key) and not (args.aws_access_key_id and args.aws_secret_access_key):
-            parser.error("Both --aws_access_key_id and --aws_secret_access_key must be provided when using access key authentication.")
+            parser.error("Both --aws_access_key_id and --aws_secret_access_key must be provided when using access key authentication")
