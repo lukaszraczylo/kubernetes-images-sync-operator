@@ -345,11 +345,26 @@ func (r *ClusterImageReconciler) createBackupJob(ctx context.Context, clusterIma
 	}
 	defaultCommands = append(defaultCommands, "rm -f /tmp/"+normalisedImageName+".tar")
 
+	// Merge annotations from different sources
+	mergedAnnotations := make(map[string]string)
+	// 1. Add ClusterImageExport metadata annotations
+	for k, v := range clusterImageExport.Annotations {
+		mergedAnnotations[k] = v
+	}
+	// 2. Add ClusterImage metadata annotations
+	for k, v := range clusterImage.Annotations {
+		mergedAnnotations[k] = v
+	}
+	// 3. Add job-specific annotations from spec (these take precedence)
+	for k, v := range clusterImage.Spec.JobAnnotations {
+		mergedAnnotations[k] = v
+	}
+
 	jobParams := shared.JobParams{
 		Name:             fmt.Sprintf("img-export-%s", clusterImage.Name),
 		Namespace:        clusterImage.Namespace,
 		Image:            shared.BACKUP_JOB_IMAGE,
-		Annotations:      clusterImage.Spec.JobAnnotations,
+		Annotations:      mergedAnnotations,
 		Commands:         defaultCommands,
 		ServiceAccount:   "",
 		ImagePullSecrets: clusterImage.Spec.ImagePullSecrets,

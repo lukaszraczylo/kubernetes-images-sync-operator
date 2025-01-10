@@ -400,11 +400,17 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	backoffLimit := int32(2) // 3 total attempts (initial + 2 retries)
 	ttlSecondsAfterFinished := int32(30) // Delete job 30 seconds after completion
 
-	// Merge controller pod annotations with job annotations
+	// Merge annotations from different sources
 	mergedAnnotations := make(map[string]string)
+	// 1. Add CRD metadata annotations
+	for k, v := range clusterImageExport.Annotations {
+		mergedAnnotations[k] = v
+	}
+	// 2. Add controller pod annotations
 	for k, v := range r.podAnnotations {
 		mergedAnnotations[k] = v
 	}
+	// 3. Add job-specific annotations from spec (these take precedence)
 	for k, v := range clusterImageExport.Spec.JobAnnotations {
 		mergedAnnotations[k] = v
 	}
