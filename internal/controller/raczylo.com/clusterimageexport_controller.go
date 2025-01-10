@@ -81,10 +81,16 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Early return if the ClusterImageExport is already in a completed state
+	// Reset status if the ClusterImageExport is in a completed state
 	if clusterImageExport.Status.Progress == shared.STATUS_SUCCESS || clusterImageExport.Status.Progress == shared.STATUS_FAILED {
-		l.Info("ClusterImageExport is already in a completed state", "Status", clusterImageExport.Status.Progress)
-		return ctrl.Result{}, nil
+		// Reset the status to allow reprocessing
+		clusterImageExport.Status.Progress = ""
+		if err := r.Status().Update(ctx, clusterImageExport); err != nil {
+			l.Error(err, "unable to reset ClusterImageExport status")
+			return ctrl.Result{}, err
+		}
+		// Requeue to process with reset status
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// If the status is empty, set it to PENDING
