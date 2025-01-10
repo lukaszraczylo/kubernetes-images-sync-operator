@@ -179,32 +179,37 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 			return ctrl.Result{}, err
 		}
 	} else if existingJob.Status.Failed > 0 {
+		r.ActiveJobs--
 		if clusterImage.Status.RetryCount < 3 {
-			clusterImage.Status.Progress = shared.STATUS_RETRYING
-			clusterImage.Status.RetryCount++
-			// Update the status before cleaning up the job
-			if err := r.Status().Update(ctx, clusterImage); err != nil {
-				l.Error(err, "unable to update ClusterImage status for retry")
-				return ctrl.Result{}, err
-			}
+			// Cleanup the failed job before retrying
 			if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
 				l.Error(err, "unable to cleanup failed job and pods for retry")
 				return ctrl.Result{}, err
 			}
-			r.ActiveJobs--
-			return ctrl.Result{Requeue: true}, nil
-		} else {
-			clusterImage.Status.Progress = shared.STATUS_FAILED
-			r.ActiveJobs--
-			// Update the status before cleaning up the job
+
+			// Update status and retry count
+			clusterImage.Status.Progress = shared.STATUS_RETRYING
+			clusterImage.Status.RetryCount++
 			if err := r.Status().Update(ctx, clusterImage); err != nil {
-				l.Error(err, "unable to update ClusterImage status to FAILED")
+				l.Error(err, "unable to update ClusterImage status for retry")
 				return ctrl.Result{}, err
 			}
-			if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
-				l.Error(err, "unable to cleanup failed job and pods")
-				return ctrl.Result{}, err
-			}
+
+			// Requeue immediately to create a new job
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		// Max retries reached, mark as failed
+		clusterImage.Status.Progress = shared.STATUS_FAILED
+		if err := r.Status().Update(ctx, clusterImage); err != nil {
+			l.Error(err, "unable to update ClusterImage status to FAILED")
+			return ctrl.Result{}, err
+		}
+
+		// Cleanup the failed job
+		if err := r.cleanupJobAndPods(ctx, existingJob); err != nil {
+			l.Error(err, "unable to cleanup failed job and pods")
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -315,12 +320,16 @@ func (r *ClusterImageReconciler) updateClusterImageExportStatus(ctx context.Cont
 	allCompleted := true
 	anyFailed := false
 	anyRunning := false
+	anyMaxRetries := false
 
 	for _, ci := range clusterImageList.Items {
 		switch ci.Status.Progress {
 		case shared.STATUS_SUCCESS, shared.STATUS_PRESENT:
 			// These statuses are considered completed
 		case shared.STATUS_FAILED:
+			if ci.Status.RetryCount >= 3 {
+				anyMaxRetries = true
+			}
 			anyFailed = true
 			allCompleted = false
 		case shared.STATUS_RUNNING, shared.STATUS_RETRYING:
@@ -334,8 +343,12 @@ func (r *ClusterImageReconciler) updateClusterImageExportStatus(ctx context.Cont
 	var newStatus string
 	if allCompleted {
 		newStatus = shared.STATUS_SUCCESS
-	} else if anyFailed {
+	} else if anyMaxRetries {
+		// Only mark as failed if at least one job has reached max retries
 		newStatus = shared.STATUS_FAILED
+	} else if anyFailed {
+		// If there are failures but no max retries reached, keep running
+		newStatus = shared.STATUS_RUNNING
 	} else if anyRunning {
 		newStatus = shared.STATUS_RUNNING
 	} else {
@@ -360,29 +373,45 @@ func (r *ClusterImageReconciler) updateClusterImageExportStatus(ctx context.Cont
 }
 
 func (r *ClusterImageReconciler) handleJobRestarts(ctx context.Context, job *v1batch.Job, clusterImage *raczylocomv1.ClusterImage) error {
+	l := log.FromContext(ctx)
 	podList := &v1.PodList{}
 	if err := r.List(ctx, podList, client.InNamespace(job.Namespace), client.MatchingLabels(job.Spec.Selector.MatchLabels)); err != nil {
 		return err
 	}
 
+	totalRestarts := 0
 	for _, pod := range podList.Items {
 		for _, containerStatus := range pod.Status.ContainerStatuses {
-			if containerStatus.RestartCount > 0 {
-				clusterImage.Status.RetryCount += int(containerStatus.RestartCount)
-				if clusterImage.Status.RetryCount >= 3 {
-					clusterImage.Status.Progress = shared.STATUS_FAILED
-					if err := r.Status().Update(ctx, clusterImage); err != nil {
-						return err
-					}
-					return r.removeAllJobsAndContainers(ctx, clusterImage.Namespace)
-				} else {
-					clusterImage.Status.Progress = shared.STATUS_RETRYING
+			totalRestarts += int(containerStatus.RestartCount)
+		}
+	}
+
+	if totalRestarts > 0 {
+		// Only count new restarts
+		newRestarts := totalRestarts - clusterImage.Status.RetryCount
+		if newRestarts > 0 {
+			l.Info("Container restarts detected", "job", job.Name, "newRestarts", newRestarts, "totalRestarts", totalRestarts)
+
+			// Update retry count with new restarts
+			clusterImage.Status.RetryCount += newRestarts
+
+			if clusterImage.Status.RetryCount >= 3 {
+				// Max retries reached
+				clusterImage.Status.Progress = shared.STATUS_FAILED
+				if err := r.Status().Update(ctx, clusterImage); err != nil {
+					return fmt.Errorf("failed to update status to FAILED: %w", err)
 				}
 
-				if err := r.Status().Update(ctx, clusterImage); err != nil {
-					return err
+				// Cleanup all related resources
+				if err := r.removeAllJobsAndContainers(ctx, clusterImage.Namespace); err != nil {
+					return fmt.Errorf("failed to cleanup resources: %w", err)
 				}
-				return nil
+			} else {
+				// Still have retries left
+				clusterImage.Status.Progress = shared.STATUS_RETRYING
+				if err := r.Status().Update(ctx, clusterImage); err != nil {
+					return fmt.Errorf("failed to update status to RETRYING: %w", err)
+				}
 			}
 		}
 	}
