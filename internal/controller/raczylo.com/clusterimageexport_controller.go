@@ -316,6 +316,10 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 		defaultCommands = append(defaultCommands, additionalCommands...)
 	}
 
+	// Set up the cleanup job with retry limits and TTL
+	backoffLimit := int32(2) // 3 total attempts (initial + 2 retries)
+	ttlSecondsAfterFinished := int32(30) // Delete job 30 seconds after completion
+
 	jobParams := shared.JobParams{
 		Name:             normalisedImageName,
 		Namespace:        clusterImageExport.Namespace,
@@ -324,6 +328,8 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 		Annotations:      clusterImageExport.Spec.JobAnnotations,
 		ServiceAccount:   "",
 		ImagePullSecrets: clusterImageExport.Spec.ImagePullSecrets,
+		BackoffLimit:     &backoffLimit,
+		TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 	}
 
 	cleanupJob := shared.CreateJob(jobParams, func(raczylocomv1.ClusterImageExport) []string { return nil })
@@ -334,5 +340,5 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 		return
 	}
 
-	l.Info("Created cleanup job")
+	l.Info("Created cleanup job with retry limit and TTL")
 }

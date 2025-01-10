@@ -13,15 +13,17 @@ import (
 )
 
 type JobParams struct {
-	Name             string
-	Namespace        string
-	Annotations      map[string]string
-	Image            string
-	Commands         []string
-	EnvVars          []corev1.EnvVar
-	OwnerReferences  []metav1.OwnerReference
-	ServiceAccount   string // Can be empty to use controller's service account
-	ImagePullSecrets []corev1.LocalObjectReference
+	Name                    string
+	Namespace               string
+	Annotations            map[string]string
+	Image                   string
+	Commands                []string
+	EnvVars                 []corev1.EnvVar
+	OwnerReferences         []metav1.OwnerReference
+	ServiceAccount          string // Can be empty to use controller's service account
+	ImagePullSecrets        []corev1.LocalObjectReference
+	BackoffLimit            *int32 // Optional: number of retries before marking the job as failed
+	TTLSecondsAfterFinished *int32 // Optional: seconds after which completed/failed job is automatically deleted
 }
 
 func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job {
@@ -62,7 +64,8 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 			Annotations: params.Annotations,
 		},
 		Spec: batchv1.JobSpec{
-			TTLSecondsAfterFinished: pointer.Int32(300),
+			BackoffLimit:            params.BackoffLimit,
+			TTLSecondsAfterFinished: params.TTLSecondsAfterFinished,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
