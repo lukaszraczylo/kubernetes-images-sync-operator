@@ -308,7 +308,7 @@ func (r *ClusterImageExportReconciler) handleDeletion(ctx context.Context, clust
 			// Continue with deletion even if cleanup fails
 		}
 
-		// Delete existing cleanup job if it exists
+		// Create or recreate cleanup job
 		jobName := "cleanup-" + shared.NormalizeImageName(clusterImageExport.Name)
 		existingJob := &batchv1.Job{}
 		err := r.Get(ctx, client.ObjectKey{
@@ -317,26 +317,35 @@ func (r *ClusterImageExportReconciler) handleDeletion(ctx context.Context, clust
 		}, existingJob)
 
 		if err == nil {
-			// Job exists, delete it
-			if err := r.Delete(ctx, existingJob); err != nil && !errors.IsNotFound(err) {
-				l.Error(err, "Failed to delete existing cleanup job")
-				// Continue with deletion even if cleanup job deletion fails
-			} else {
-				l.Info("Successfully deleted existing cleanup job", "job", jobName)
+			// Job exists, delete it first
+			deletePolicy := metav1.DeletePropagationForeground
+			deleteOptions := client.DeleteOptions{
+				PropagationPolicy: &deletePolicy,
 			}
+			if err := r.Delete(ctx, existingJob, &deleteOptions); err != nil && !errors.IsNotFound(err) {
+				l.Error(err, "Failed to delete existing cleanup job")
+				return ctrl.Result{Requeue: true}, nil
+			}
+			l.Info("Successfully deleted existing cleanup job", "job", jobName)
+			// Requeue to wait for job deletion to complete
+			return ctrl.Result{Requeue: true}, nil
 		} else if !errors.IsNotFound(err) {
-			// Unexpected error, log but continue
+			// Unexpected error
 			l.Error(err, "Error checking for existing cleanup job")
+			return ctrl.Result{Requeue: true}, nil
 		}
 
 		// Create new cleanup job
-		r.runCleanupJob(ctx, clusterImageExport)
+		if err := r.runCleanupJob(ctx, clusterImageExport); err != nil {
+			l.Error(err, "Failed to create cleanup job")
+			return ctrl.Result{Requeue: true}, nil
+		}
 
-		// Remove the finalizer regardless of cleanup job status
+		// Only remove finalizer after cleanup job is created successfully
 		controllerutil.RemoveFinalizer(clusterImageExport, clusterImageExportFinalizer)
 		if err := r.Update(ctx, clusterImageExport); err != nil {
 			if errors.IsNotFound(err) {
-				// CRD is already gone, which is fine
+				// Object is already gone, which is fine
 				return ctrl.Result{}, nil
 			}
 			return ctrl.Result{}, err
@@ -367,7 +376,7 @@ func (r *ClusterImageExportReconciler) deleteAssociatedClusterImages(ctx context
 	return nil
 }
 
-func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, clusterImageExport *raczylocomv1.ClusterImageExport) {
+func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, clusterImageExport *raczylocomv1.ClusterImageExport) error {
 	l := log.FromContext(ctx)
 	normalisedImageName := "cleanup-" + shared.NormalizeImageName(clusterImageExport.Name)
 
@@ -413,11 +422,12 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 
 	cleanupJob := shared.CreateJob(jobParams, func(raczylocomv1.ClusterImageExport) []string { return nil })
 
-	// Try to create the cleanup job but don't block on errors
+	// Try to create the cleanup job
 	if err := r.Create(ctx, cleanupJob); err != nil {
-		l.Error(err, "Failed to create cleanup job, continuing with deletion anyway")
-		return
+		l.Error(err, "Failed to create cleanup job")
+		return err
 	}
 
 	l.Info("Created cleanup job with retry limit and TTL")
+	return nil
 }

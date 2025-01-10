@@ -69,16 +69,23 @@ def get_s3_client(use_role=False, role_name=None, use_current_role=False, aws_ac
                     logger.info(f"Environment: {key}={value}")
 
             # Get the AWS region from environment or parameter
-            aws_region = region or os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION')
-            if not aws_region:
+            aws_region = os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION')
+            if not aws_region and not region:
                 raise ValueError("AWS region must be specified either through region parameter or AWS_REGION environment variable")
+
+            # Use region from parameter only if not set in environment
+            if not aws_region:
+                aws_region = region
+                # Set it in environment for other AWS clients
+                os.environ['AWS_REGION'] = region
 
             logger.info(f"Using AWS region: {aws_region}")
 
             # Create an STS client in the correct region
-            sts = boto3.client('sts', 
-                region_name=aws_region,
-                endpoint_url=f'https://sts.{aws_region}.amazonaws.com')
+            sts_kwargs = {'endpoint_url': f'https://sts.{aws_region}.amazonaws.com'}
+            if not os.environ.get('AWS_REGION') and not os.environ.get('AWS_DEFAULT_REGION'):
+                sts_kwargs['region_name'] = aws_region
+            sts = boto3.client('sts', **sts_kwargs)
 
             # Read the web identity token
             token_file = os.environ.get('AWS_WEB_IDENTITY_TOKEN_FILE')
@@ -105,14 +112,17 @@ def get_s3_client(use_role=False, role_name=None, use_current_role=False, aws_ac
                 credentials = response['Credentials']
                 
                 # Create the S3 client with the temporary credentials
-                client = boto3.client(
-                    's3',
-                    region_name=aws_region,
-                    aws_access_key_id=credentials['AccessKeyId'],
-                    aws_secret_access_key=credentials['SecretAccessKey'],
-                    aws_session_token=credentials['SessionToken'],
-                    **client_kwargs
-                )
+                s3_kwargs = {
+                    'aws_access_key_id': credentials['AccessKeyId'],
+                    'aws_secret_access_key': credentials['SecretAccessKey'],
+                    'aws_session_token': credentials['SessionToken']
+                }
+                # Only set region_name if not already in environment
+                if not os.environ.get('AWS_REGION') and not os.environ.get('AWS_DEFAULT_REGION'):
+                    s3_kwargs['region_name'] = aws_region
+                # Add any additional kwargs
+                s3_kwargs.update(client_kwargs)
+                client = boto3.client('s3', **s3_kwargs)
 
                 logger.info(f"Successfully assumed role with web identity: {response['AssumedRoleUser']['Arn']}")
                 
