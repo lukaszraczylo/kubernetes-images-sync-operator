@@ -268,12 +268,32 @@ func (r *ClusterImageExportReconciler) handleDeletion(ctx context.Context, clust
 			// Continue with deletion even if cleanup fails
 		}
 
-		// Attempt to run cleanup job but don't block on errors
-		r.runCleanupJob(ctx, clusterImageExport)
+		// Check if cleanup job already exists
+		jobName := "cleanup-" + shared.NormalizeImageName(clusterImageExport.Name)
+		existingJob := &batchv1.Job{}
+		err := r.Get(ctx, client.ObjectKey{
+			Namespace: clusterImageExport.Namespace,
+			Name:      jobName,
+		}, existingJob)
+
+		if err == nil {
+			// Job exists, don't create a new one
+			l.Info("Cleanup job already exists, skipping creation", "job", jobName)
+		} else if errors.IsNotFound(err) {
+			// Job doesn't exist, create it
+			r.runCleanupJob(ctx, clusterImageExport)
+		} else {
+			// Unexpected error, log but continue
+			l.Error(err, "Error checking for existing cleanup job")
+		}
 
 		// Remove the finalizer regardless of cleanup job status
 		controllerutil.RemoveFinalizer(clusterImageExport, clusterImageExportFinalizer)
 		if err := r.Update(ctx, clusterImageExport); err != nil {
+			if errors.IsNotFound(err) {
+				// CRD is already gone, which is fine
+				return ctrl.Result{}, nil
+			}
 			return ctrl.Result{}, err
 		}
 	}
