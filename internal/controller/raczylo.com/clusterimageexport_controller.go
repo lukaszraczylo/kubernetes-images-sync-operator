@@ -9,6 +9,7 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -408,6 +409,21 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 		mergedAnnotations[k] = v
 	}
 
+	// Set up environment variables for AWS configuration
+	envVars := []corev1.EnvVar{}
+	if clusterImageExport.Spec.Storage.StorageTarget == shared.STORAGE_S3 {
+		if clusterImageExport.Spec.Storage.S3.Region != "" {
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  "AWS_REGION",
+				Value: clusterImageExport.Spec.Storage.S3.Region,
+			})
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  "AWS_DEFAULT_REGION",
+				Value: clusterImageExport.Spec.Storage.S3.Region,
+			})
+		}
+	}
+
 	jobParams := shared.JobParams{
 		Name:             normalisedImageName,
 		Namespace:        clusterImageExport.Namespace,
@@ -418,6 +434,7 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 		ImagePullSecrets: clusterImageExport.Spec.ImagePullSecrets,
 		BackoffLimit:     &backoffLimit,
 		TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
+		EnvVars:         envVars,
 	}
 
 	cleanupJob := shared.CreateJob(jobParams, func(raczylocomv1.ClusterImageExport) []string { return nil })
