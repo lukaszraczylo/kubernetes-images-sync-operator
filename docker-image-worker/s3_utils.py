@@ -63,24 +63,55 @@ def get_s3_client(use_role=False, role_name=None, use_current_role=False, aws_ac
         # Use the current role (e.g., from Kubernetes service account)
         logger.info("Using current role from environment")
         try:
-            # Don't create an STS client or try to assume role, just use the web identity credentials directly
-            session = boto3.Session()
-            client = session.client('s3', **client_kwargs)
+            # Import required components
+            from botocore.session import Session
+            import botocore.credentials
+            import json
+
+            # Get required environment variables
+            token_file = os.environ.get('AWS_WEB_IDENTITY_TOKEN_FILE')
+            role_arn = os.environ.get('AWS_ROLE_ARN')
+
+            if not token_file or not role_arn:
+                raise ValueError("AWS_WEB_IDENTITY_TOKEN_FILE and AWS_ROLE_ARN must be set")
+
+            # Read the web identity token
+            with open(token_file, 'r') as f:
+                token = f.read().strip()
+
+            logger.info("Successfully read web identity token")
+            logger.info(f"Using role ARN: {role_arn}")
+
+            # Create an STS client with no credentials
+            sts = boto3.client('sts', region_name=region if region else None)
+
+            # Assume role with web identity
+            response = sts.assume_role_with_web_identity(
+                RoleArn=role_arn,
+                RoleSessionName=os.environ.get('AWS_ROLE_SESSION_NAME', 'WebIdentitySession'),
+                WebIdentityToken=token
+            )
+
+            # Get the temporary credentials
+            credentials = response['Credentials']
             
-            # Log the identity for debugging but don't create a separate STS client
-            creds = session.get_credentials()
-            if creds:
-                logger.info("Successfully obtained credentials from environment")
-                # Try to get the role ARN from environment for logging
-                role_arn = os.environ.get('AWS_ROLE_ARN')
-                if role_arn:
-                    logger.info(f"Using role: {role_arn}")
+            # Create the S3 client with the temporary credentials
+            client = boto3.client(
+                's3',
+                aws_access_key_id=credentials['AccessKeyId'],
+                aws_secret_access_key=credentials['SecretAccessKey'],
+                aws_session_token=credentials['SessionToken'],
+                **client_kwargs
+            )
+
+            logger.info(f"Successfully assumed role with web identity: {response['AssumedRoleUser']['Arn']}")
             return client
         except Exception as e:
             logger.error(f"Failed to use current role: {str(e)}")
-            logger.error("Environment variables:")
-            for env_var in ['AWS_WEB_IDENTITY_TOKEN_FILE', 'AWS_ROLE_ARN', 'AWS_ROLE_SESSION_NAME']:
-                logger.error(f"- {env_var}: {os.environ.get(env_var, 'not set')}")
+            logger.error("Current environment:")
+            for key, value in sorted(os.environ.items()):
+                if any(k in key.lower() for k in ['aws', 'role', 'auth', 'token', 'credential']):
+                    logger.error(f"  {key}: {value}")
             raise
     else:
         # Use default credentials (environment, instance profile, or pod service account)
