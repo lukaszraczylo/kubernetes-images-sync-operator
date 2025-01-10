@@ -12,7 +12,7 @@ sa:
         - ALL
     image:
       repository: ghcr.io/lukaszraczylo/kubernetes-images-sync-operator
-      tag: 0.2.24
+      tag: 0.2.26
     resources:
       limits:
         cpu: 500m

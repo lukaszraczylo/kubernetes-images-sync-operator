@@ -210,14 +210,6 @@ func (r *ClusterImageExportReconciler) checkAllClusterImagesCompleted(ctx contex
 // SetupWithManager sets up the controller with the Manager.
 
 func (r *ClusterImageExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Set up field indexing for ClusterImage exportName
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &raczylocomv1.ClusterImage{}, "spec.exportName", func(obj client.Object) []string {
-		clusterImage := obj.(*raczylocomv1.ClusterImage)
-		return []string{clusterImage.Spec.ExportName}
-	}); err != nil {
-		return fmt.Errorf("failed setting up field indexer: %w", err)
-	}
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&raczylocomv1.ClusterImageExport{}).
 		Owns(&raczylocomv1.ClusterImage{}).
