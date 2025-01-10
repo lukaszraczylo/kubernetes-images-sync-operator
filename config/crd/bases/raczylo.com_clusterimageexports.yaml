@@ -24,6 +24,12 @@ spec:
     - jsonPath: .status.progress
       name: Progress
       type: string
+    - jsonPath: .status.completedImages
+      name: Images
+      type: string
+    - jsonPath: .status.totalImages
+      name: Total
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -160,8 +166,14 @@ spec:
           status:
             description: ClusterImageExportStatus defines the observed state of ClusterImageExport
             properties:
+              completedImages:
+                description: Number of images that have completed export
+                type: integer
               progress:
                 type: string
+              totalImages:
+                description: Total number of images to be exported
+                type: integer
             type: object
         type: object
     served: true

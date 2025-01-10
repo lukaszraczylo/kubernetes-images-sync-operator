@@ -83,38 +83,15 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Handle status updates with retries
-	if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
-		// Reset status if the ClusterImageExport is in a completed state
-		if export.Status.Progress == shared.STATUS_SUCCESS || export.Status.Progress == shared.STATUS_FAILED {
-			export.Status.Progress = ""
-			return nil
-		}
-
-		// Set to PENDING if empty
-		if export.Status.Progress == "" {
-			export.Status.Progress = shared.STATUS_PENDING
-			return nil
-		}
-
-		return nil
-	}); err != nil {
-		l.Error(err, "unable to update ClusterImageExport status")
-		return ctrl.Result{}, err
-	}
-
-	// If we just reset the status, requeue to process with reset status
-	if clusterImageExport.Status.Progress == "" {
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// Proceed with the rest of the reconciliation logic
+	// Proceed with reconciliation logic
+	// Get list of all images to be exported
 	fullImagesList, err := r.listImagesInCluster(ctx, l, clusterImageExport)
 	if err != nil {
 		l.Error(err, "unable to list images in the cluster")
 		return ctrl.Result{}, err
 	}
 
+	// Add additional images if specified
 	if len(clusterImageExport.Spec.AdditionalImages) > 0 {
 		for _, image := range clusterImageExport.Spec.AdditionalImages {
 			img, err := shared.ProcessContainerName(image)
@@ -126,12 +103,19 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Update status to RUNNING with retry
+	// Update total image count and status
+	totalImages := len(fullImagesList.Containers)
 	if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
-		export.Status.Progress = shared.STATUS_RUNNING
+		if export.Status.Progress == "" {
+			export.Status.Progress = shared.STATUS_PENDING
+		}
+		if export.Status.Progress == shared.STATUS_PENDING {
+			export.Status.Progress = shared.STATUS_RUNNING
+		}
+		export.Status.TotalImages = totalImages
 		return nil
 	}); err != nil {
-		l.Error(err, "unable to update ClusterImageExport status to RUNNING")
+		l.Error(err, "unable to update ClusterImageExport status")
 		return ctrl.Result{}, err
 	}
 
@@ -196,24 +180,43 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Check if all ClusterImages are completed
-	allCompleted, err := r.checkAllClusterImagesCompleted(ctx, clusterImageExport)
-	if err != nil {
-		l.Error(err, "unable to check ClusterImages status")
+	// Check completion status and update counts
+	completedCount := 0
+	clusterImageList := &raczylocomv1.ClusterImageList{}
+	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImageExport.Namespace), 
+		client.MatchingFields{"spec.exportName": clusterImageExport.Name}); err != nil {
+		l.Error(err, "unable to list ClusterImages")
 		return ctrl.Result{}, err
 	}
 
-	if allCompleted {
+	for _, ci := range clusterImageList.Items {
+		if ci.Status.Progress == shared.STATUS_SUCCESS || ci.Status.Progress == shared.STATUS_PRESENT {
+			completedCount++
+		}
+	}
+
+	// Update status with completion info
+	if completedCount == totalImages && totalImages > 0 {
 		if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
 			export.Status.Progress = shared.STATUS_SUCCESS
+			export.Status.CompletedImages = completedCount
 			return nil
 		}); err != nil {
-			l.Error(err, "unable to update ClusterImageExport status to SUCCESS")
+			l.Error(err, "unable to update ClusterImageExport status")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	} else {
+		if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
+			export.Status.CompletedImages = completedCount
+			return nil
+		}); err != nil {
+			l.Error(err, "unable to update ClusterImageExport status")
 			return ctrl.Result{}, err
 		}
 	}
 
-	return ctrl.Result{Requeue: !allCompleted}, nil
+	return ctrl.Result{Requeue: true}, nil
 }
 
 // updateStatusWithRetry attempts to update the status of a ClusterImageExport with retries

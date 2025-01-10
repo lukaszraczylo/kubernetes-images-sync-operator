@@ -76,6 +76,10 @@ type ClusterImageExportSpec struct {
 // ClusterImageExportStatus defines the observed state of ClusterImageExport
 type ClusterImageExportStatus struct {
 	Progress string `json:"progress,omitempty"`
+	// Total number of images to be exported
+	TotalImages int `json:"totalImages,omitempty"`
+	// Number of images that have completed export
+	CompletedImages int `json:"completedImages,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -85,6 +89,8 @@ type ClusterImageExportStatus struct {
 // +kubebuilder:printcolumn:name="BasePath",type="string",JSONPath=".spec.basePath"
 // +kubebuilder:printcolumn:name="Storage",type="string",JSONPath=".spec.storage.target"
 // +kubebuilder:printcolumn:name="Progress",type="string",JSONPath=".status.progress"
+// +kubebuilder:printcolumn:name="Images",type="string",JSONPath=".status.completedImages"
+// +kubebuilder:printcolumn:name="Total",type="string",JSONPath=".status.totalImages"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type ClusterImageExport struct {
 	metav1.TypeMeta   `json:",inline"`
