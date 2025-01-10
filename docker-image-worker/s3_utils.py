@@ -12,28 +12,26 @@ def get_s3_client(use_role=False, role_name=None, aws_access_key_id=None, aws_se
     elif region:
         client_kwargs['region_name'] = region
 
-    if use_role:
-        if role_name:
-            # Assume the specified role
-            sts_client = boto3.client('sts')
-            assumed_role_object = sts_client.assume_role(
-                RoleArn=f"arn:aws:iam::{boto3.client('sts').get_caller_identity()['Account']}:role/{role_name}",
-                RoleSessionName="AssumeRoleSession"
-            )
-            credentials = assumed_role_object['Credentials']
-            client_kwargs['aws_access_key_id'] = credentials['AccessKeyId']
-            client_kwargs['aws_secret_access_key'] = credentials['SecretAccessKey']
-            client_kwargs['aws_session_token'] = credentials['SessionToken']
-            return boto3.client('s3', **client_kwargs)
-        else:
-            # Use the current role/credentials from the environment
-            return boto3.client('s3', **client_kwargs)
-    elif aws_access_key_id and aws_secret_access_key:
+    if aws_access_key_id and aws_secret_access_key:
+        # Use explicit credentials if provided
         client_kwargs['aws_access_key_id'] = aws_access_key_id
         client_kwargs['aws_secret_access_key'] = aws_secret_access_key
         return boto3.client('s3', **client_kwargs)
+    elif use_role and role_name:
+        # Assume specific role if requested
+        sts_client = boto3.client('sts')
+        assumed_role_object = sts_client.assume_role(
+            RoleArn=f"arn:aws:iam::{boto3.client('sts').get_caller_identity()['Account']}:role/{role_name}",
+            RoleSessionName="AssumeRoleSession"
+        )
+        credentials = assumed_role_object['Credentials']
+        client_kwargs['aws_access_key_id'] = credentials['AccessKeyId']
+        client_kwargs['aws_secret_access_key'] = credentials['SecretAccessKey']
+        client_kwargs['aws_session_token'] = credentials['SessionToken']
+        return boto3.client('s3', **client_kwargs)
     else:
-        raise ValueError("Either use_role must be True, or both aws_access_key_id and aws_secret_access_key must be provided")
+        # Use default credentials (environment, instance profile, or pod service account)
+        return boto3.client('s3', **client_kwargs)
 
 def parse_s3_path(s3_path):
     """
@@ -60,14 +58,10 @@ def validate_args(args, parser):
     Validate command-line arguments
     """
     if args.destination.startswith('s3://'):
-        if args.use_role and (args.aws_access_key_id or args.aws_secret_access_key):
-            parser.error("When using IAM role (--use_role), access key and secret should not be specified.")
-
-        if (args.aws_access_key_id or args.aws_secret_access_key) and not (args.aws_access_key_id and args.aws_secret_access_key):
-            parser.error("Both --aws_access_key_id and --aws_secret_access_key must be provided when using access key authentication.")
-
-        if not args.use_role and not (args.aws_access_key_id and args.aws_secret_access_key):
-            parser.error("Either --use_role or both --aws_access_key_id and --aws_secret_access_key must be provided for S3 operations.")
-
+        # Check for conflicting auth methods
         if args.use_role and args.role_name and (args.aws_access_key_id or args.aws_secret_access_key):
             parser.error("When using a specific role (--role_name), access key and secret should not be specified.")
+
+        # If using explicit credentials, require both key and secret
+        if (args.aws_access_key_id or args.aws_secret_access_key) and not (args.aws_access_key_id and args.aws_secret_access_key):
+            parser.error("Both --aws_access_key_id and --aws_secret_access_key must be provided when using access key authentication.")
