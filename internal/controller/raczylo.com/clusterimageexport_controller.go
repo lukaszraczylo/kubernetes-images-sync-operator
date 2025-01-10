@@ -26,6 +26,11 @@ import (
 type ClusterImageExportReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	podAnnotations map[string]string
+}
+
+func (r *ClusterImageExportReconciler) InjectPodAnnotations(annotations map[string]string) {
+	r.podAnnotations = annotations
 }
 
 // +kubebuilder:rbac:groups=raczylo.com,resources=*,verbs=get;list;watch;create;update;patch;delete
@@ -320,12 +325,21 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	backoffLimit := int32(2) // 3 total attempts (initial + 2 retries)
 	ttlSecondsAfterFinished := int32(30) // Delete job 30 seconds after completion
 
+	// Merge controller pod annotations with job annotations
+	mergedAnnotations := make(map[string]string)
+	for k, v := range r.podAnnotations {
+		mergedAnnotations[k] = v
+	}
+	for k, v := range clusterImageExport.Spec.JobAnnotations {
+		mergedAnnotations[k] = v
+	}
+
 	jobParams := shared.JobParams{
 		Name:             normalisedImageName,
 		Namespace:        clusterImageExport.Namespace,
 		Image:            shared.BACKUP_JOB_IMAGE,
 		Commands:         defaultCommands,
-		Annotations:      clusterImageExport.Spec.JobAnnotations,
+		Annotations:      mergedAnnotations,
 		ServiceAccount:   "",
 		ImagePullSecrets: clusterImageExport.Spec.ImagePullSecrets,
 		BackoffLimit:     &backoffLimit,

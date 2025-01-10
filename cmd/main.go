@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
@@ -25,7 +26,9 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -150,10 +153,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&raczylocomcontroller.ClusterImageExportReconciler{
+	// Get controller pod annotations
+	ctx := context.Background()
+	podName := os.Getenv("POD_NAME")
+	podNamespace := os.Getenv("POD_NAMESPACE")
+	var podAnnotations map[string]string
+	if podName != "" && podNamespace != "" {
+		pod := &corev1.Pod{}
+		if err := mgr.GetAPIReader().Get(ctx, types.NamespacedName{
+			Name:      podName,
+			Namespace: podNamespace,
+		}, pod); err == nil {
+			podAnnotations = pod.Annotations
+		} else {
+			setupLog.Error(err, "unable to get controller pod annotations")
+		}
+	}
+
+	exportController := &raczylocomcontroller.ClusterImageExportReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}
+	exportController.InjectPodAnnotations(podAnnotations)
+	if err = exportController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterImageExport")
 		os.Exit(1)
 	}
