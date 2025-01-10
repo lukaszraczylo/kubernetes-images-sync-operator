@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -81,25 +82,29 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	// Reset status if the ClusterImageExport is in a completed state
-	if clusterImageExport.Status.Progress == shared.STATUS_SUCCESS || clusterImageExport.Status.Progress == shared.STATUS_FAILED {
-		// Reset the status to allow reprocessing
-		clusterImageExport.Status.Progress = ""
-		if err := r.Status().Update(ctx, clusterImageExport); err != nil {
-			l.Error(err, "unable to reset ClusterImageExport status")
-			return ctrl.Result{}, err
+	// Handle status updates with retries
+	if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
+		// Reset status if the ClusterImageExport is in a completed state
+		if export.Status.Progress == shared.STATUS_SUCCESS || export.Status.Progress == shared.STATUS_FAILED {
+			export.Status.Progress = ""
+			return nil
 		}
-		// Requeue to process with reset status
-		return ctrl.Result{Requeue: true}, nil
+
+		// Set to PENDING if empty
+		if export.Status.Progress == "" {
+			export.Status.Progress = shared.STATUS_PENDING
+			return nil
+		}
+
+		return nil
+	}); err != nil {
+		l.Error(err, "unable to update ClusterImageExport status")
+		return ctrl.Result{}, err
 	}
 
-	// If the status is empty, set it to PENDING
+	// If we just reset the status, requeue to process with reset status
 	if clusterImageExport.Status.Progress == "" {
-		clusterImageExport.Status.Progress = shared.STATUS_PENDING
-		if err := r.Status().Update(ctx, clusterImageExport); err != nil {
-			l.Error(err, "unable to update ClusterImageExport status")
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// Proceed with the rest of the reconciliation logic
@@ -120,8 +125,11 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	clusterImageExport.Status.Progress = shared.STATUS_RUNNING
-	if err := r.Status().Update(ctx, clusterImageExport); err != nil {
+	// Update status to RUNNING with retry
+	if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
+		export.Status.Progress = shared.STATUS_RUNNING
+		return nil
+	}); err != nil {
 		l.Error(err, "unable to update ClusterImageExport status to RUNNING")
 		return ctrl.Result{}, err
 	}
@@ -137,8 +145,10 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if err == nil {
 			// ClusterImage exists, check its status
 			if clusterImage.Status.Progress == shared.STATUS_FAILED {
-				clusterImageExport.Status.Progress = shared.STATUS_FAILED
-				if err := r.Status().Update(ctx, clusterImageExport); err != nil {
+				if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
+					export.Status.Progress = shared.STATUS_FAILED
+					return nil
+				}); err != nil {
 					l.Error(err, "unable to update ClusterImageExport status to FAILED")
 					return ctrl.Result{}, err
 				}
@@ -193,14 +203,38 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	if allCompleted {
-		clusterImageExport.Status.Progress = shared.STATUS_SUCCESS
-		if err := r.Status().Update(ctx, clusterImageExport); err != nil {
+		if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
+			export.Status.Progress = shared.STATUS_SUCCESS
+			return nil
+		}); err != nil {
 			l.Error(err, "unable to update ClusterImageExport status to SUCCESS")
 			return ctrl.Result{}, err
 		}
 	}
 
 	return ctrl.Result{Requeue: !allCompleted}, nil
+}
+
+// updateStatusWithRetry attempts to update the status of a ClusterImageExport with retries
+func (r *ClusterImageExportReconciler) updateStatusWithRetry(ctx context.Context, clusterImageExport *raczylocomv1.ClusterImageExport, updateFn func(*raczylocomv1.ClusterImageExport) error) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get the latest version of the resource
+		latest := &raczylocomv1.ClusterImageExport{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: clusterImageExport.Namespace,
+			Name:      clusterImageExport.Name,
+		}, latest); err != nil {
+			return err
+		}
+
+		// Apply the update function to the latest version
+		if err := updateFn(latest); err != nil {
+			return err
+		}
+
+		// Update the status
+		return r.Status().Update(ctx, latest)
+	})
 }
 
 func (r *ClusterImageExportReconciler) checkAllClusterImagesCompleted(ctx context.Context, clusterImageExport *raczylocomv1.ClusterImageExport) (bool, error) {
