@@ -63,49 +63,98 @@ def get_s3_client(use_role=False, role_name=None, use_current_role=False, aws_ac
         # Use the current role (e.g., from Kubernetes service account)
         logger.info("Using current role from environment")
         try:
-            # Import required components
-            from botocore.session import Session
-            import botocore.credentials
-            import json
+            # Log environment for debugging
+            for key, value in sorted(os.environ.items()):
+                if any(k in key.lower() for k in ['aws', 'role', 'auth', 'token', 'credential']):
+                    logger.info(f"Environment: {key}={value}")
 
-            # Get required environment variables
+            # Get the AWS region from environment or parameter
+            aws_region = region or os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION')
+            if not aws_region:
+                raise ValueError("AWS region must be specified either through region parameter or AWS_REGION environment variable")
+
+            logger.info(f"Using AWS region: {aws_region}")
+
+            # Create an STS client in the correct region
+            sts = boto3.client('sts', 
+                region_name=aws_region,
+                endpoint_url=f'https://sts.{aws_region}.amazonaws.com')
+
+            # Read the web identity token
             token_file = os.environ.get('AWS_WEB_IDENTITY_TOKEN_FILE')
             role_arn = os.environ.get('AWS_ROLE_ARN')
 
             if not token_file or not role_arn:
                 raise ValueError("AWS_WEB_IDENTITY_TOKEN_FILE and AWS_ROLE_ARN must be set")
 
-            # Read the web identity token
             with open(token_file, 'r') as f:
                 token = f.read().strip()
 
             logger.info("Successfully read web identity token")
             logger.info(f"Using role ARN: {role_arn}")
 
-            # Create an STS client with no credentials
-            sts = boto3.client('sts', region_name=region if region else None)
+            # Assume role with web identity using regional endpoint
+            try:
+                response = sts.assume_role_with_web_identity(
+                    RoleArn=role_arn,
+                    RoleSessionName=os.environ.get('AWS_ROLE_SESSION_NAME', 'WebIdentitySession'),
+                    WebIdentityToken=token
+                )
 
-            # Assume role with web identity
-            response = sts.assume_role_with_web_identity(
-                RoleArn=role_arn,
-                RoleSessionName=os.environ.get('AWS_ROLE_SESSION_NAME', 'WebIdentitySession'),
-                WebIdentityToken=token
-            )
+                # Get the temporary credentials
+                credentials = response['Credentials']
+                
+                # Create the S3 client with the temporary credentials
+                client = boto3.client(
+                    's3',
+                    region_name=aws_region,
+                    aws_access_key_id=credentials['AccessKeyId'],
+                    aws_secret_access_key=credentials['SecretAccessKey'],
+                    aws_session_token=credentials['SessionToken'],
+                    **client_kwargs
+                )
 
-            # Get the temporary credentials
-            credentials = response['Credentials']
-            
-            # Create the S3 client with the temporary credentials
-            client = boto3.client(
-                's3',
-                aws_access_key_id=credentials['AccessKeyId'],
-                aws_secret_access_key=credentials['SecretAccessKey'],
-                aws_session_token=credentials['SessionToken'],
-                **client_kwargs
-            )
+                logger.info(f"Successfully assumed role with web identity: {response['AssumedRoleUser']['Arn']}")
+                
+                # Test the credentials
+                try:
+                    # Try to get caller identity first
+                    sts_test = boto3.client(
+                        'sts',
+                        region_name=aws_region,
+                        aws_access_key_id=credentials['AccessKeyId'],
+                        aws_secret_access_key=credentials['SecretAccessKey'],
+                        aws_session_token=credentials['SessionToken']
+                    )
+                    identity = sts_test.get_caller_identity()
+                    logger.info(f"Successfully verified credentials as: {identity['Arn']}")
+                    
+                    # Then try S3 access
+                    bucket_name = os.environ.get('BUCKET_NAME', 'default-bucket')
+                    try:
+                        client.head_bucket(Bucket=bucket_name)
+                        logger.info(f"Successfully verified S3 access to bucket: {bucket_name}")
+                    except ClientError as e:
+                        error_code = e.response['Error']['Code']
+                        if error_code == '404':
+                            logger.warning(f"Bucket {bucket_name} does not exist, but credentials work")
+                        else:
+                            logger.warning(f"S3 access check failed: {error_code} - {e.response['Error']['Message']}")
+                except Exception as e:
+                    logger.warning(f"Could not verify credentials: {str(e)}")
+                
+                return client
 
-            logger.info(f"Successfully assumed role with web identity: {response['AssumedRoleUser']['Arn']}")
-            return client
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                error_message = e.response['Error']['Message']
+                logger.error("Failed to assume role with web identity:")
+                logger.error(f"Error Code: {error_code}")
+                logger.error(f"Error Message: {error_message}")
+                logger.error("Trust policy might need to be updated to allow sts:AssumeRoleWithWebIdentity")
+                logger.error("Current role ARN: " + role_arn)
+                logger.error("Token file path: " + token_file)
+                raise
         except Exception as e:
             logger.error(f"Failed to use current role: {str(e)}")
             logger.error("Current environment:")
