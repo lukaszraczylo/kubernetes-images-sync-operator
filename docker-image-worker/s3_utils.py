@@ -24,7 +24,10 @@ def get_s3_client(use_role=False, role_name=None, aws_access_key_id=None, aws_se
             client_kwargs['aws_access_key_id'] = credentials['AccessKeyId']
             client_kwargs['aws_secret_access_key'] = credentials['SecretAccessKey']
             client_kwargs['aws_session_token'] = credentials['SessionToken']
-        return boto3.client('s3', **client_kwargs)
+            return boto3.client('s3', **client_kwargs)
+        else:
+            # Use the current role/credentials from the environment
+            return boto3.client('s3', **client_kwargs)
     elif aws_access_key_id and aws_secret_access_key:
         client_kwargs['aws_access_key_id'] = aws_access_key_id
         client_kwargs['aws_secret_access_key'] = aws_secret_access_key
@@ -57,8 +60,8 @@ def validate_args(args, parser):
     Validate command-line arguments
     """
     if args.destination.startswith('s3://'):
-        if args.use_role and (args.aws_access_key_id or args.aws_secret_access_key or args.endpoint_url):
-            parser.error("When using IAM role (--use_role), access key, secret, and endpoint URL should not be specified.")
+        if args.use_role and (args.aws_access_key_id or args.aws_secret_access_key):
+            parser.error("When using IAM role (--use_role), access key and secret should not be specified.")
 
         if (args.aws_access_key_id or args.aws_secret_access_key) and not (args.aws_access_key_id and args.aws_secret_access_key):
             parser.error("Both --aws_access_key_id and --aws_secret_access_key must be provided when using access key authentication.")
