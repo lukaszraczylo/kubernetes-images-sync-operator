@@ -157,6 +157,13 @@ func (r *ClusterImageReconciler) handlePendingClusterImage(ctx context.Context, 
 }
 
 func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, clusterImage *raczylocomv1.ClusterImage, l logr.Logger) (ctrl.Result, error) {
+	// Get the latest version before proceeding
+	latest := &raczylocomv1.ClusterImage{}
+	if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
+		return ctrl.Result{}, err
+	}
+	clusterImage = latest
+
 	// Check for existing job for this ClusterImage
 	existingJob := &v1batch.Job{}
 	jobName := fmt.Sprintf("img-export-%s", clusterImage.Name)
@@ -171,16 +178,26 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 				return ctrl.Result{}, nil
 			}
 
-			// If we have retries left, consider retrying
-			if clusterImage.Status.RetryCount < 3 {
-				clusterImage.Status.Progress = shared.STATUS_RETRYING
-				clusterImage.Status.RetryCount++
-			} else {
-				// Exceeded retries; mark as FAILED
-				clusterImage.Status.Progress = shared.STATUS_FAILED
+			// Get latest version before updating status
+			latest := &raczylocomv1.ClusterImage{}
+			if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
+				return ctrl.Result{}, err
 			}
 
-			if err := r.Status().Update(ctx, clusterImage); err != nil {
+			// If we have retries left, consider retrying
+			if latest.Status.RetryCount < 3 {
+				latest.Status.Progress = shared.STATUS_RETRYING
+				latest.Status.RetryCount++
+			} else {
+				// Exceeded retries; mark as FAILED
+				latest.Status.Progress = shared.STATUS_FAILED
+			}
+
+			if err := r.Status().Update(ctx, latest); err != nil {
+				if errors.IsConflict(err) {
+					// Resource was modified, requeue and try again
+					return ctrl.Result{Requeue: true}, nil
+				}
 				l.Error(err, "unable to update ClusterImage status after job not found")
 				return ctrl.Result{}, err
 			}
@@ -192,18 +209,17 @@ func (r *ClusterImageReconciler) handleRunningClusterImage(ctx context.Context, 
 	}
 
 	// Check job status and update ClusterImage accordingly
-	// Get latest version before updating status
-	latest := &raczylocomv1.ClusterImage{}
-	if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
-		return ctrl.Result{}, err
-	}
-	clusterImage = latest
-
 	if existingJob.Status.Succeeded > 0 {
-		clusterImage.Status.Progress = shared.STATUS_SUCCESS
+		// Get latest version before updating status
+		latest := &raczylocomv1.ClusterImage{}
+		if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		latest.Status.Progress = shared.STATUS_SUCCESS
 		r.ActiveJobs--
 		// Update the status before cleaning up the job
-		if err := r.Status().Update(ctx, clusterImage); err != nil {
+		if err := r.Status().Update(ctx, latest); err != nil {
 			if errors.IsConflict(err) {
 				// Resource was modified, requeue and try again
 				return ctrl.Result{Requeue: true}, nil
@@ -431,6 +447,14 @@ func (r *ClusterImageReconciler) updateClusterImageExportStatus(ctx context.Cont
 
 func (r *ClusterImageReconciler) handleJobRestarts(ctx context.Context, job *v1batch.Job, clusterImage *raczylocomv1.ClusterImage) error {
 	l := log.FromContext(ctx)
+
+	// Get the latest version before proceeding
+	latest := &raczylocomv1.ClusterImage{}
+	if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
+		return err
+	}
+	clusterImage = latest
+
 	podList := &v1.PodList{}
 	if err := r.List(ctx, podList, client.InNamespace(job.Namespace), client.MatchingLabels(job.Spec.Selector.MatchLabels)); err != nil {
 		return err
@@ -449,22 +473,21 @@ func (r *ClusterImageReconciler) handleJobRestarts(ctx context.Context, job *v1b
 		if newRestarts > 0 {
 			l.Info("Container restarts detected", "job", job.Name, "newRestarts", newRestarts, "totalRestarts", totalRestarts)
 
+			// Get latest version before updating
+			latest := &raczylocomv1.ClusterImage{}
+			if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
+				return err
+			}
+
 			// Update retry count with new restarts
-			clusterImage.Status.RetryCount += newRestarts
+			latest.Status.RetryCount = clusterImage.Status.RetryCount + newRestarts
 
-			if clusterImage.Status.RetryCount >= 3 {
-				// Get latest version before updating status
-				latest := &raczylocomv1.ClusterImage{}
-				if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
-					return err
-				}
-
+			if latest.Status.RetryCount >= 3 {
 				// Max retries reached
 				latest.Status.Progress = shared.STATUS_FAILED
-				latest.Status.RetryCount = clusterImage.Status.RetryCount
 				if err := r.Status().Update(ctx, latest); err != nil {
 					if errors.IsConflict(err) {
-						// Resource was modified, try again
+						// Resource was modified, requeue and try again
 						return nil
 					}
 					return fmt.Errorf("failed to update status to FAILED: %w", err)
@@ -475,18 +498,11 @@ func (r *ClusterImageReconciler) handleJobRestarts(ctx context.Context, job *v1b
 					return fmt.Errorf("failed to cleanup resources: %w", err)
 				}
 			} else {
-				// Get latest version before updating status
-				latest := &raczylocomv1.ClusterImage{}
-				if err := r.Get(ctx, types.NamespacedName{Name: clusterImage.Name, Namespace: clusterImage.Namespace}, latest); err != nil {
-					return err
-				}
-
 				// Still have retries left
 				latest.Status.Progress = shared.STATUS_RETRYING
-				latest.Status.RetryCount = clusterImage.Status.RetryCount
 				if err := r.Status().Update(ctx, latest); err != nil {
 					if errors.IsConflict(err) {
-						// Resource was modified, try again
+						// Resource was modified, requeue and try again
 						return nil
 					}
 					return fmt.Errorf("failed to update status to RETRYING: %w", err)
