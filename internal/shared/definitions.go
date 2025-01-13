@@ -6,13 +6,14 @@ import (
 	"strings"
 )
 
-var BACKUP_JOB_IMAGE = getWorkerImage()
+// BACKUP_JOB_IMAGE is the image used for backup jobs
+var BACKUP_JOB_IMAGE string
 
-func getWorkerImage() string {
-    if img := os.Getenv("WORKER_IMAGE"); img != "" {
-        return img
+func init() {
+    BACKUP_JOB_IMAGE = os.Getenv("WORKER_IMAGE")
+    if BACKUP_JOB_IMAGE == "" {
+        BACKUP_JOB_IMAGE = "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:latest" // fallback
     }
-    return "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:1.0.2" // fallback
 }
 
 const (
