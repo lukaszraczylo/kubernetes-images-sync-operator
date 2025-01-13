@@ -51,12 +51,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
+Get the worker image
 */}}
-{{- define "chart.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "chart.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
+{{- define "chart.workerImage" -}}
+{{- printf "%s:%s" .Values.images.worker.repository .Values.images.worker.tag }}
 {{- end }}

@@ -1,11 +1,19 @@
 package shared
 
 import (
+	"os"
 	"regexp"
 	"strings"
 )
 
-var BACKUP_JOB_IMAGE = "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:1.0.2"
+var BACKUP_JOB_IMAGE = getWorkerImage()
+
+func getWorkerImage() string {
+    if img := os.Getenv("WORKER_IMAGE"); img != "" {
+        return img
+    }
+    return "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:1.0.2" // fallback
+}
 
 const (
 	// AVAILABLE STATUSES

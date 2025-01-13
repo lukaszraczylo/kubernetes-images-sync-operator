@@ -4,18 +4,18 @@ metadata:
   name: {{ include "chart.fullname" . }}-sa
   labels:
     control-plane: sa
-  {{- include "chart.labels" . | nindent 4 }}
+    {{- include "chart.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.sa.replicas }}
   selector:
     matchLabels:
       control-plane: sa
-    {{- include "chart.selectorLabels" . | nindent 6 }}
+      {{- include "chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
         control-plane: sa
-      {{- include "chart.selectorLabels" . | nindent 8 }}
+        {{- include "chart.selectorLabels" . | nindent 8 }}
       annotations:
         kubectl.kubernetes.io/default-container: manager
     spec:
@@ -30,8 +30,9 @@ spec:
               fieldPath: spec.serviceAccountName
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: {{ quote .Values.kubernetesClusterDomain }}
-        image: {{ .Values.sa.manager.image.repository }}:{{ .Values.sa.manager.image.tag
-          | default .Chart.AppVersion }}
+        - name: WORKER_IMAGE
+          value: {{ include "chart.workerImage" . }}
+        image: {{ .Values.images.operator.repository }}:{{ .Values.images.operator.tag | default .Chart.AppVersion }}
         livenessProbe:
           httpGet:
             path: /healthz
@@ -46,8 +47,7 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         resources: {{- toYaml .Values.sa.manager.resources | nindent 10 }}
-        securityContext: {{- toYaml .Values.sa.manager.containerSecurityContext | nindent
-          10 }}
+        securityContext: {{- toYaml .Values.sa.manager.containerSecurityContext | nindent 10 }}
       securityContext: {{- toYaml .Values.sa.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "chart.fullname" . }}-sa
       terminationGracePeriodSeconds: 10
