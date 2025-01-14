@@ -1,18 +1,22 @@
 kubernetesClusterDomain: cluster.local
+worker:
+  image:
+    repository: ghcr.io/lukaszraczylo/kubernetes-images-sync-worker
+    tag: null # Will default to .Chart.AppVersion if not set
 sa:
   manager:
     args:
-    - --metrics-bind-address=:8443
-    - --leader-elect
-    - --health-probe-bind-address=:8081
+      - --metrics-bind-address=:8443
+      - --leader-elect
+      - --health-probe-bind-address=:8081
     containerSecurityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop:
-        - ALL
+          - ALL
     image:
       repository: ghcr.io/lukaszraczylo/kubernetes-images-sync-operator
-      tag: 0.5.49
+      tag: 0.5.50
     resources:
       limits:
         cpu: 500m
@@ -27,8 +31,8 @@ sa:
     annotations: {}
 saMetricsService:
   ports:
-  - name: https
-    port: 8443
-    protocol: TCP
-    targetPort: 8443
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: 8443
   type: ClusterIP
