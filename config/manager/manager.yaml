@@ -68,6 +68,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.serviceAccountName
+            - name: WORKER_IMAGE
+              value: ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:latest
           image: controller:latest
           name: manager
           securityContext:
