@@ -181,7 +181,9 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Check completion status and update counts
-	completedCount := 0
+	successCount := 0
+	failedCount := 0
+	pendingCount := 0
 	clusterImageList := &raczylocomv1.ClusterImageList{}
 	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImageExport.Namespace), 
 		client.MatchingFields{"spec.exportName": clusterImageExport.Name}); err != nil {
@@ -190,30 +192,37 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	for _, ci := range clusterImageList.Items {
-		if ci.Status.Progress == shared.STATUS_SUCCESS || ci.Status.Progress == shared.STATUS_PRESENT {
-			completedCount++
+		switch ci.Status.Progress {
+		case shared.STATUS_SUCCESS, shared.STATUS_PRESENT:
+			successCount++
+		case shared.STATUS_FAILED:
+			failedCount++
+		case shared.STATUS_PENDING, shared.STATUS_RUNNING, shared.STATUS_RETRYING:
+			pendingCount++
 		}
 	}
 
+	completedCount := successCount + failedCount
+
 	// Update status with completion info
-	if completedCount == totalImages && totalImages > 0 {
-		if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
-			export.Status.Progress = shared.STATUS_SUCCESS
-			export.Status.CompletedImages = completedCount
-			return nil
-		}); err != nil {
-			l.Error(err, "unable to update ClusterImageExport status")
-			return ctrl.Result{}, err
+	if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
+		export.Status.CompletedImages = completedCount
+		if completedCount == totalImages && totalImages > 0 {
+			if failedCount > 0 {
+				export.Status.Progress = shared.STATUS_FAILED
+			} else {
+				export.Status.Progress = shared.STATUS_SUCCESS
+			}
 		}
-		return ctrl.Result{}, nil
-	} else {
-		if err := r.updateStatusWithRetry(ctx, clusterImageExport, func(export *raczylocomv1.ClusterImageExport) error {
-			export.Status.CompletedImages = completedCount
-			return nil
-		}); err != nil {
-			l.Error(err, "unable to update ClusterImageExport status")
-			return ctrl.Result{}, err
-		}
+		return nil
+	}); err != nil {
+		l.Error(err, "unable to update ClusterImageExport status")
+		return ctrl.Result{}, err
+	}
+
+	// If there are still pending images, requeue
+	if pendingCount > 0 {
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	return ctrl.Result{Requeue: true}, nil
@@ -401,7 +410,7 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 
 	// Set up the cleanup job with retry limits and TTL
 	backoffLimit := int32(2) // 3 total attempts (initial + 2 retries)
-	ttlSecondsAfterFinished := int32(30) // Delete job 30 seconds after completion
+	ttlSecondsAfterFinished := int32(300) // Delete job 5 minutes after completion
 
 	// Merge annotations from different sources
 	mergedAnnotations := make(map[string]string)

@@ -36,7 +36,7 @@ type ClusterImageReconciler struct {
 // +kubebuilder:rbac:groups=raczylo.com,resources=*/finalizers,verbs=update
 // # additional RBAC rules - create and manage jobs
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete;deletecollection
 // add access to secrets
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 func (r *ClusterImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
