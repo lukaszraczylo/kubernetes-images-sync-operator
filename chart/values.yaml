@@ -10,9 +10,11 @@ sa:
       capabilities:
         drop:
         - ALL
+    env:
+      workerImage: ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:0.5.52
     image:
       repository: ghcr.io/lukaszraczylo/kubernetes-images-sync-operator
-      tag: 0.5.51
+      tag: 0.5.52
     resources:
       limits:
         cpu: 500m

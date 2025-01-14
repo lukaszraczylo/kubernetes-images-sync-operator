@@ -28,6 +28,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.serviceAccountName
+        - name: WORKER_IMAGE
+          value: {{ quote .Values.sa.manager.env.workerImage }}
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: {{ quote .Values.kubernetesClusterDomain }}
         image: {{ .Values.sa.manager.image.repository }}:{{ .Values.sa.manager.image.tag
