@@ -1,7 +1,8 @@
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/lukaszraczylo/kubernetes-images-sync-operator
 IMG_WORKER ?= ghcr.io/lukaszraczylo/kubernetes-images-sync-worker
-CHART_NAME = kube-images-sync-operator
+CHART_NAME = kube-images-sync
+CHART_DIR = charts/kube-images-sync-operator
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
@@ -223,7 +224,7 @@ release-chart:
 	@test -d ../helm-charts || exit 1
 	rm -fr ../helm-charts/charts/${CHART_NAME} || true
 	mkdir -p ../helm-charts/charts/${CHART_NAME}
-	cp -R chart/* ../helm-charts/charts/${CHART_NAME}
+	cp -R ${CHART_DIR}/* ../helm-charts/charts/${CHART_NAME}
 	cd ../helm-charts/charts/${CHART_NAME} && \
 		cr package --config ../../chart-releaser.yaml
 	cd ../helm-charts && git add -A charts/packages && git commit -m "Add packaged charts" && git push
