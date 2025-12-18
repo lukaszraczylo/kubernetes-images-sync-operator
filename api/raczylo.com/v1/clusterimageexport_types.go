@@ -40,7 +40,7 @@ type ClusterImageStorageS3 struct {
 
 // ClusterImageStorageSpec defines the desired state of ClusterImageStorage
 type ClusterImageStorageSpec struct {
-	// +kubebuilder:validation:Enum=file;S3
+	// +kubebuilder:validation:Enum=FILE;S3
 	StorageTarget string                `json:"target"`
 	S3            ClusterImageStorageS3 `json:"s3,omitempty"`
 }
@@ -67,8 +67,9 @@ type ClusterImageExportSpec struct {
 	JobAnnotations map[string]string `json:"jobAnnotations,omitempty"`
 	// +kubebuilder:validation:Optional
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
-	// +kubebuilder:validation.Minimum=1
-	// +kubebuilder:validation.Maximum=100
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	// +kubebuilder:default=5
 	MaxConcurrentJobs int      `json:"maxConcurrentJobs"`
 	AdditionalImages  []string `json:"additionalImages,omitempty"`
 }

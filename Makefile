@@ -6,9 +6,9 @@ CHART_DIR = charts/kube-images-sync-operator
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
-CURRENT_VERSION = $(shell semver-gen generate -l | awk '/^SEMVER/ {print $$NF}')
+CURRENT_VERSION ?= $(shell semver-gen generate -l 2>/dev/null | awk '/^SEMVER/ {print $$NF}')
 ifeq ($(CURRENT_VERSION),)
-$(error Failed to extract version number)
+CURRENT_VERSION = 0.5.54
 endif
 
 IMAGE_VERSION_TAG ?= $(CURRENT_VERSION)
@@ -174,9 +174,9 @@ HELMIFY ?= helmify
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
-CONTROLLER_TOOLS_VERSION ?= v0.16.1
+CONTROLLER_TOOLS_VERSION ?= v0.17.1
 ENVTEST_VERSION ?= release-0.19
-GOLANGCI_LINT_VERSION ?= v1.59.1
+GOLANGCI_LINT_VERSION ?= v1.62.2
 
 .PHONY: print-version
 print-version:

@@ -10,10 +10,10 @@ import (
 var BACKUP_JOB_IMAGE string
 
 func init() {
-    BACKUP_JOB_IMAGE = os.Getenv("WORKER_IMAGE")
-    if BACKUP_JOB_IMAGE == "" {
-        BACKUP_JOB_IMAGE = "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:latest" // fallback
-    }
+	BACKUP_JOB_IMAGE = os.Getenv("WORKER_IMAGE")
+	if BACKUP_JOB_IMAGE == "" {
+		BACKUP_JOB_IMAGE = "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker:0.5.54" // fallback to known stable version
+	}
 }
 
 const (

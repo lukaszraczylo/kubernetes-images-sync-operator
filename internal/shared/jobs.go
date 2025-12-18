@@ -9,13 +9,13 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 type JobParams struct {
 	Name                    string
 	Namespace               string
-	Annotations            map[string]string
+	Annotations             map[string]string
 	Image                   string
 	Commands                []string
 	EnvVars                 []corev1.EnvVar
@@ -88,7 +88,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 							VolumeMounts: volumeMounts,
 							Env:          params.EnvVars,
 							SecurityContext: &corev1.SecurityContext{
-								Privileged: pointer.Bool(true),
+								Privileged: ptr.To(true),
 							},
 						},
 					},

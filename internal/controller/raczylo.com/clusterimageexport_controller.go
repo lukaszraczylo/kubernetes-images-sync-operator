@@ -2,7 +2,7 @@ package raczylocom
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 - MD5 used for non-cryptographic unique identifiers only
 	"fmt"
 	"strings"
 
@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -27,7 +27,7 @@ import (
 // ClusterImageExportReconciler reconciles a ClusterImageExport object
 type ClusterImageExportReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme         *runtime.Scheme
 	podAnnotations map[string]string
 }
 
@@ -121,6 +121,7 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	for _, image := range fullImagesList.Containers {
 		// Include creation timestamp in the hash to differentiate between exports with the same name
+		// #nosec G401 - MD5 used for non-cryptographic unique identifier generation, not security
 		nameHash := fmt.Sprintf("%x", md5.Sum([]byte(clusterImageExport.Name+image.Image+image.Tag+image.Sha+
 			clusterImageExport.Annotations["export.raczylo.com/creation-timestamp"])))[:14]
 
@@ -156,7 +157,7 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 						Kind:       clusterImageExport.Kind,
 						Name:       clusterImageExport.Name,
 						UID:        clusterImageExport.UID,
-						Controller: pointer.Bool(true),
+						Controller: ptr.To(true),
 					},
 				},
 			},
@@ -185,7 +186,7 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 	failedCount := 0
 	pendingCount := 0
 	clusterImageList := &raczylocomv1.ClusterImageList{}
-	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImageExport.Namespace), 
+	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImageExport.Namespace),
 		client.MatchingFields{"spec.exportName": clusterImageExport.Name}); err != nil {
 		l.Error(err, "unable to list ClusterImages")
 		return ctrl.Result{}, err
@@ -248,21 +249,6 @@ func (r *ClusterImageExportReconciler) updateStatusWithRetry(ctx context.Context
 		// Update the status
 		return r.Status().Update(ctx, latest)
 	})
-}
-
-func (r *ClusterImageExportReconciler) checkAllClusterImagesCompleted(ctx context.Context, clusterImageExport *raczylocomv1.ClusterImageExport) (bool, error) {
-	clusterImageList := &raczylocomv1.ClusterImageList{}
-	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImageExport.Namespace), client.MatchingFields{"spec.exportName": clusterImageExport.Name}); err != nil {
-		return false, err
-	}
-
-	for _, ci := range clusterImageList.Items {
-		if ci.Status.Progress != shared.STATUS_SUCCESS && ci.Status.Progress != shared.STATUS_PRESENT {
-			return false, nil
-		}
-	}
-
-	return true, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -409,7 +395,7 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	}
 
 	// Set up the cleanup job with retry limits and TTL
-	backoffLimit := int32(2) // 3 total attempts (initial + 2 retries)
+	backoffLimit := int32(2)              // 3 total attempts (initial + 2 retries)
 	ttlSecondsAfterFinished := int32(300) // Delete job 5 minutes after completion
 
 	// Merge annotations from different sources
@@ -443,16 +429,16 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	}
 
 	jobParams := shared.JobParams{
-		Name:             normalisedImageName,
-		Namespace:        clusterImageExport.Namespace,
-		Image:            shared.BACKUP_JOB_IMAGE,
-		Commands:         defaultCommands,
-		Annotations:      mergedAnnotations,
-		ServiceAccount:   "",
-		ImagePullSecrets: clusterImageExport.Spec.ImagePullSecrets,
-		BackoffLimit:     &backoffLimit,
+		Name:                    normalisedImageName,
+		Namespace:               clusterImageExport.Namespace,
+		Image:                   shared.BACKUP_JOB_IMAGE,
+		Commands:                defaultCommands,
+		Annotations:             mergedAnnotations,
+		ServiceAccount:          "",
+		ImagePullSecrets:        clusterImageExport.Spec.ImagePullSecrets,
+		BackoffLimit:            &backoffLimit,
 		TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
-		EnvVars:         envVars,
+		EnvVars:                 envVars,
 	}
 
 	cleanupJob := shared.CreateJob(jobParams, func(raczylocomv1.ClusterImageExport) []string { return nil })
