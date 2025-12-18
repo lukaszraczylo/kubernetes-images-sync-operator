@@ -24,12 +24,13 @@ helm install raczylo/kube-images-sync
 
 Please remember that backups are triggered whenever the new object appears
 
-```
+```yaml
 apiVersion: raczylo.com/v1
 kind: ClusterImageExport
 metadata:
   name: backup-20240901
 spec:
+  name: backup-20240901
   jobAnnotations:
     my-fancy-export: 11-09-2024
   # Excludes will remove all images with listed wording from the backup list
@@ -66,6 +67,88 @@ spec:
     # useRole: true # Current role to be used instead of access / secret keys
     # roleARN: my-awesome-role # Instead of picking the default role, use the specified one
   maxConcurrentJobs: 1
+```
+
+## Automatic Cleanup (TTL & Retention)
+
+To prevent old exports from accumulating, you can configure automatic cleanup using TTL (time-based) or retention policies (count-based).
+
+> **WARNING**: When a ClusterImageExport is deleted, the actual backed up images in storage are also deleted. Make sure your retention settings align with your backup requirements.
+
+### TTL-based cleanup
+
+Delete exports after a specified number of days:
+
+```yaml
+apiVersion: raczylo.com/v1
+kind: ClusterImageExport
+metadata:
+  name: daily-backup-2024-12-18
+spec:
+  name: daily-backup
+  basePath: /backups/daily
+  storage:
+    target: S3
+    s3:
+      bucket: my-backup-bucket
+      region: eu-west-1
+      useRole: true
+  maxConcurrentJobs: 5
+  # Delete this backup 30 days after completion
+  ttlDaysAfterFinished: 30
+```
+
+### Retention-based cleanup
+
+Keep only the last N successful/failed exports per base path:
+
+```yaml
+apiVersion: raczylo.com/v1
+kind: ClusterImageExport
+metadata:
+  name: weekly-backup-2024-w51
+spec:
+  name: weekly-backup
+  basePath: /backups/weekly
+  storage:
+    target: S3
+    s3:
+      bucket: my-backup-bucket
+      region: eu-west-1
+      useRole: true
+  maxConcurrentJobs: 5
+  # Keep the last 12 successful backups (3 months of weekly backups)
+  # Keep only the last 2 failed backups for debugging
+  retention:
+    maxSuccessful: 12
+    maxFailed: 2
+```
+
+### Combined TTL + Retention
+
+You can use both policies together. The export will be deleted when either condition is met:
+
+```yaml
+apiVersion: raczylo.com/v1
+kind: ClusterImageExport
+metadata:
+  name: monthly-backup-2024-12
+spec:
+  name: monthly-backup
+  basePath: /backups/monthly
+  storage:
+    target: S3
+    s3:
+      bucket: my-backup-bucket
+      region: eu-west-1
+      useRole: true
+  maxConcurrentJobs: 10
+  # Keep backups for up to 1 year
+  ttlDaysAfterFinished: 365
+  # But also limit to last 12 monthly backups
+  retention:
+    maxSuccessful: 12
+    maxFailed: 1
 ```
 
 ## Worth knowing

@@ -5,6 +5,7 @@ import (
 	"crypto/md5" // #nosec G501 - MD5 used for non-cryptographic unique identifiers only
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
@@ -59,6 +60,19 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	if !clusterImageExport.ObjectMeta.DeletionTimestamp.IsZero() {
 		return r.handleDeletion(ctx, clusterImageExport)
+	}
+
+	// Check if this export should be deleted by TTL
+	if r.shouldDeleteByTTL(clusterImageExport) {
+		l.Info("Deleting export due to TTL expiration",
+			"export", clusterImageExport.Name,
+			"ttlDays", *clusterImageExport.Spec.TTLDaysAfterFinished,
+			"completedAt", clusterImageExport.Status.CompletedAt)
+		if err := r.Delete(ctx, clusterImageExport); err != nil && !errors.IsNotFound(err) {
+			l.Error(err, "Failed to delete export by TTL")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
 	}
 
 	// Add finalizer and creation timestamp annotation if they don't exist
@@ -214,11 +228,25 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 			} else {
 				export.Status.Progress = shared.STATUS_SUCCESS
 			}
+			// Set CompletedAt timestamp when export completes
+			if export.Status.CompletedAt == nil {
+				now := metav1.Now()
+				export.Status.CompletedAt = &now
+			}
 		}
 		return nil
 	}); err != nil {
 		l.Error(err, "unable to update ClusterImageExport status")
 		return ctrl.Result{}, err
+	}
+
+	// If export is complete, run retention cleanup
+	if clusterImageExport.Status.Progress == shared.STATUS_SUCCESS ||
+		clusterImageExport.Status.Progress == shared.STATUS_FAILED {
+		if err := r.cleanupByRetention(ctx, clusterImageExport); err != nil {
+			l.Error(err, "Failed to cleanup by retention policy")
+			// Don't return error - this is non-critical
+		}
 	}
 
 	// If there are still pending images, requeue
@@ -384,12 +412,12 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	if clusterImageExport.Spec.Storage.StorageTarget == shared.STORAGE_S3 {
 		s3Params := shared.SetupS3Params(clusterImageExport.Spec.Storage.S3)
 		additionalCommands := []string{
-			"./cleanup.py " + strings.Join(s3Params, " ") + " 's3://" + clusterImageExport.Spec.Storage.S3.Bucket + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.ObjectMeta.Name + "/'",
+			"./worker cleanup " + strings.Join(s3Params, " ") + " 's3://" + clusterImageExport.Spec.Storage.S3.Bucket + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.ObjectMeta.Name + "/'",
 		}
 		defaultCommands = append(defaultCommands, additionalCommands...)
 	} else if clusterImageExport.Spec.Storage.StorageTarget == shared.STORAGE_FILE {
 		additionalCommands := []string{
-			"./cleanup.py" + "'" + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.ObjectMeta.Name + "/'",
+			"./worker cleanup '" + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.ObjectMeta.Name + "/'",
 		}
 		defaultCommands = append(defaultCommands, additionalCommands...)
 	}
@@ -450,5 +478,112 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 	}
 
 	l.Info("Created cleanup job with retry limit and TTL")
+	return nil
+}
+
+// shouldDeleteByTTL checks if the export should be deleted based on TTL (in days)
+func (r *ClusterImageExportReconciler) shouldDeleteByTTL(clusterImageExport *raczylocomv1.ClusterImageExport) bool {
+	// Only apply TTL to completed exports
+	if clusterImageExport.Status.Progress != shared.STATUS_SUCCESS &&
+		clusterImageExport.Status.Progress != shared.STATUS_FAILED {
+		return false
+	}
+
+	// Check if TTL is configured
+	if clusterImageExport.Spec.TTLDaysAfterFinished == nil {
+		return false
+	}
+
+	// Check if CompletedAt is set
+	if clusterImageExport.Status.CompletedAt == nil {
+		return false
+	}
+
+	// Convert days to duration (24 hours per day)
+	ttlDuration := time.Duration(*clusterImageExport.Spec.TTLDaysAfterFinished) * 24 * time.Hour
+	expirationTime := clusterImageExport.Status.CompletedAt.Add(ttlDuration)
+
+	return time.Now().After(expirationTime)
+}
+
+// cleanupByRetention enforces the retention policy for completed exports
+func (r *ClusterImageExportReconciler) cleanupByRetention(ctx context.Context, clusterImageExport *raczylocomv1.ClusterImageExport) error {
+	l := log.FromContext(ctx)
+
+	// Check if retention policy is configured
+	if clusterImageExport.Spec.Retention == nil {
+		return nil
+	}
+
+	// List all ClusterImageExports in the same namespace
+	exportList := &raczylocomv1.ClusterImageExportList{}
+	if err := r.List(ctx, exportList, client.InNamespace(clusterImageExport.Namespace)); err != nil {
+		return fmt.Errorf("failed to list ClusterImageExports: %w", err)
+	}
+
+	// Separate successful and failed exports, sorted by completion time
+	var successfulExports, failedExports []*raczylocomv1.ClusterImageExport
+	for i := range exportList.Items {
+		export := &exportList.Items[i]
+		// Skip exports that don't have the same base path (different backup sets)
+		if export.Spec.BasePath != clusterImageExport.Spec.BasePath {
+			continue
+		}
+		// Skip exports that are still running
+		if export.Status.Progress != shared.STATUS_SUCCESS &&
+			export.Status.Progress != shared.STATUS_FAILED {
+			continue
+		}
+		if export.Status.Progress == shared.STATUS_SUCCESS {
+			successfulExports = append(successfulExports, export)
+		} else if export.Status.Progress == shared.STATUS_FAILED {
+			failedExports = append(failedExports, export)
+		}
+	}
+
+	// Sort by CompletedAt (newest first)
+	sortByCompletionTime := func(exports []*raczylocomv1.ClusterImageExport) {
+		for i := 0; i < len(exports); i++ {
+			for j := i + 1; j < len(exports); j++ {
+				iTime := exports[i].Status.CompletedAt
+				jTime := exports[j].Status.CompletedAt
+				if iTime == nil || (jTime != nil && jTime.After(iTime.Time)) {
+					exports[i], exports[j] = exports[j], exports[i]
+				}
+			}
+		}
+	}
+
+	sortByCompletionTime(successfulExports)
+	sortByCompletionTime(failedExports)
+
+	// Delete excess successful exports
+	if clusterImageExport.Spec.Retention.MaxSuccessful != nil {
+		maxSuccessful := int(*clusterImageExport.Spec.Retention.MaxSuccessful)
+		if len(successfulExports) > maxSuccessful {
+			for _, export := range successfulExports[maxSuccessful:] {
+				l.Info("Deleting export due to retention policy (maxSuccessful exceeded)",
+					"export", export.Name, "maxSuccessful", maxSuccessful)
+				if err := r.Delete(ctx, export); err != nil && !errors.IsNotFound(err) {
+					l.Error(err, "Failed to delete export for retention", "export", export.Name)
+				}
+			}
+		}
+	}
+
+	// Delete excess failed exports
+	if clusterImageExport.Spec.Retention.MaxFailed != nil {
+		maxFailed := int(*clusterImageExport.Spec.Retention.MaxFailed)
+		if len(failedExports) > maxFailed {
+			for _, export := range failedExports[maxFailed:] {
+				l.Info("Deleting export due to retention policy (maxFailed exceeded)",
+					"export", export.Name, "maxFailed", maxFailed)
+				if err := r.Delete(ctx, export); err != nil && !errors.IsNotFound(err) {
+					l.Error(err, "Failed to delete export for retention", "export", export.Name)
+				}
+			}
+		}
+	}
+
 	return nil
 }

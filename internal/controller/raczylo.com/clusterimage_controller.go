@@ -360,12 +360,12 @@ func (r *ClusterImageReconciler) createBackupJob(ctx context.Context, clusterIma
 	if clusterImage.Spec.Storage == shared.STORAGE_S3 {
 		s3Params := shared.SetupS3Params(clusterImageExport.Spec.Storage.S3)
 		additionalCommands := []string{
-			"./export.py " + strings.Join(s3Params, " ") + " '/tmp/" + normalisedImageName + ".tar' " + "'s3://" + clusterImageExport.Spec.Storage.S3.Bucket + clusterImage.Spec.ExportPath + "/" + clusterImage.Spec.ExportName + "/" + normalisedImageName + ".tar'",
+			"./worker export " + strings.Join(s3Params, " ") + " '/tmp/" + normalisedImageName + ".tar' " + "'s3://" + clusterImageExport.Spec.Storage.S3.Bucket + clusterImage.Spec.ExportPath + "/" + clusterImage.Spec.ExportName + "/" + normalisedImageName + ".tar'",
 		}
 		defaultCommands = append(defaultCommands, additionalCommands...)
 	} else if clusterImage.Spec.Storage == shared.STORAGE_FILE {
 		additionalCommands := []string{
-			"./export.py /tmp/" + normalisedImageName + ".tar" + " " + clusterImage.Spec.ExportPath + "/" + clusterImage.Spec.ExportName + "/" + normalisedImageName + ".tar",
+			"./worker export '/tmp/" + normalisedImageName + ".tar' '" + clusterImage.Spec.ExportPath + "/" + clusterImage.Spec.ExportName + "/" + normalisedImageName + ".tar'",
 		}
 		defaultCommands = append(defaultCommands, additionalCommands...)
 	}

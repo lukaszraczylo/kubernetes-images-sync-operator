@@ -34,6 +34,22 @@ builds:
       - amd64
       - arm64
 
+  - id: worker
+    main: ./cmd/worker
+    binary: worker
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
 archives:
   - id: default
     formats:
@@ -97,7 +113,8 @@ release:
     ```
 
 dockers_v2:
-  - ids:
+  - id: operator
+    ids:
       - manager
     images:
       - "ghcr.io/lukaszraczylo/kubernetes-images-sync-operator"
@@ -113,6 +130,29 @@ dockers_v2:
       "org.opencontainers.image.version": "{{ .Version }}"
       "org.opencontainers.image.source": "https://github.com/lukaszraczylo/kubernetes-images-sync-operator"
       "org.opencontainers.image.description": "Kubernetes operator for backing up and syncing container images"
+
+  - id: worker
+    ids:
+      - worker
+    images:
+      - "ghcr.io/lukaszraczylo/kubernetes-images-sync-worker"
+    tags:
+      - "{{ .Version }}"
+      - "latest"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    dockerfile: Dockerfile.worker
+    extra_files:
+      - docker-image-worker/storage.conf
+      - docker-image-worker/containers.conf
+      - docker-image-worker/registries.conf
+      - docker-image-worker/podman-preauth.sh
+    labels:
+      "org.opencontainers.image.title": "kubernetes-images-sync-worker"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "https://github.com/lukaszraczylo/kubernetes-images-sync-operator"
+      "org.opencontainers.image.description": "Worker image for backing up container images to S3 or local storage"
 
 signs:
   - cmd: cosign

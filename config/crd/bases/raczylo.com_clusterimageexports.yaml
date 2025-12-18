@@ -118,6 +118,25 @@ spec:
                 items:
                   type: string
                 type: array
+              retention:
+                description: |-
+                  Retention specifies how many completed exports to keep per base path.
+                  Oldest exports beyond this limit will be deleted (including their backed up images).
+                  WARNING: Deletion removes both the CRD and the actual backed up images from storage.
+                properties:
+                  maxFailed:
+                    default: 1
+                    description: Maximum number of failed exports to keep
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  maxSuccessful:
+                    default: 3
+                    description: Maximum number of successful exports to keep
+                    format: int32
+                    minimum: 0
+                    type: integer
+                type: object
               storage:
                 description: ClusterImageStorageSpec defines the desired state of
                   ClusterImageStorage
@@ -160,6 +179,14 @@ spec:
                 required:
                 - target
                 type: object
+              ttlDaysAfterFinished:
+                description: |-
+                  TTLDaysAfterFinished specifies how many days to keep completed exports.
+                  If set, the export (and its backed up images) will be deleted after this many days.
+                  WARNING: Deletion removes both the CRD and the actual backed up images from storage.
+                format: int32
+                minimum: 1
+                type: integer
             required:
             - basePath
             - maxConcurrentJobs
@@ -169,6 +196,11 @@ spec:
           status:
             description: ClusterImageExportStatus defines the observed state of ClusterImageExport
             properties:
+              completedAt:
+                description: CompletedAt is the timestamp when the export completed
+                  (SUCCESS or FAILED)
+                format: date-time
+                type: string
               completedImages:
                 description: Number of images that have completed export
                 type: integer
