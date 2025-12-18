@@ -7,7 +7,6 @@ ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg2 \
-    python3-pip \
     sudo \
     jq \
     && rm -rf /var/lib/apt/lists/*
@@ -30,11 +29,18 @@ RUN adduser --disabled-password --gecos "" --uid 1001 runner \
 
 WORKDIR /home/runner
 
-COPY storage.conf containers.conf registries.conf /home/runner/.config/containers/
-COPY requirements.txt export.py cleanup.py s3_utils.py podman-preauth.sh ./
+# Copy container configuration files
+COPY docker-image-worker/storage.conf docker-image-worker/containers.conf docker-image-worker/registries.conf /home/runner/.config/containers/
+
+# Copy the entrypoint script
+COPY docker-image-worker/podman-preauth.sh ./
+
+# Copy the worker binary (from goreleaser build context)
+COPY $TARGETPLATFORM/worker ./
+
 USER runner
 RUN sudo chown -R runner:runner /home/runner/.config \
-    && python3 -m pip install --no-cache-dir --only-binary=:all: -r requirements.txt \
-    && sudo chmod +x podman-preauth.sh
+    && sudo chmod +x podman-preauth.sh worker
+
 ENTRYPOINT ["/home/runner/podman-preauth.sh"]
 CMD ["bash", "-c"]

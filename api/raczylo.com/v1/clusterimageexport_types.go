@@ -21,6 +21,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// RetentionPolicy defines how many completed ClusterImageExport resources to keep
+type RetentionPolicy struct {
+	// Maximum number of successful exports to keep
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=3
+	MaxSuccessful *int32 `json:"maxSuccessful,omitempty"`
+	// Maximum number of failed exports to keep
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=1
+	MaxFailed *int32 `json:"maxFailed,omitempty"`
+}
+
 type ClusterImageStorageS3 struct {
 	// Bucket name
 	Bucket string `json:"bucket"`
@@ -40,7 +52,7 @@ type ClusterImageStorageS3 struct {
 
 // ClusterImageStorageSpec defines the desired state of ClusterImageStorage
 type ClusterImageStorageSpec struct {
-	// +kubebuilder:validation:Enum=file;S3
+	// +kubebuilder:validation:Enum=FILE;S3
 	StorageTarget string                `json:"target"`
 	S3            ClusterImageStorageS3 `json:"s3,omitempty"`
 }
@@ -67,10 +79,22 @@ type ClusterImageExportSpec struct {
 	JobAnnotations map[string]string `json:"jobAnnotations,omitempty"`
 	// +kubebuilder:validation:Optional
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
-	// +kubebuilder:validation.Minimum=1
-	// +kubebuilder:validation.Maximum=100
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	// +kubebuilder:default=5
 	MaxConcurrentJobs int      `json:"maxConcurrentJobs"`
 	AdditionalImages  []string `json:"additionalImages,omitempty"`
+	// TTLDaysAfterFinished specifies how many days to keep completed exports.
+	// If set, the export (and its backed up images) will be deleted after this many days.
+	// WARNING: Deletion removes both the CRD and the actual backed up images from storage.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Optional
+	TTLDaysAfterFinished *int32 `json:"ttlDaysAfterFinished,omitempty"`
+	// Retention specifies how many completed exports to keep per base path.
+	// Oldest exports beyond this limit will be deleted (including their backed up images).
+	// WARNING: Deletion removes both the CRD and the actual backed up images from storage.
+	// +kubebuilder:validation:Optional
+	Retention *RetentionPolicy `json:"retention,omitempty"`
 }
 
 // ClusterImageExportStatus defines the observed state of ClusterImageExport
@@ -80,6 +104,8 @@ type ClusterImageExportStatus struct {
 	TotalImages int `json:"totalImages,omitempty"`
 	// Number of images that have completed export
 	CompletedImages int `json:"completedImages,omitempty"`
+	// CompletedAt is the timestamp when the export completed (SUCCESS or FAILED)
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

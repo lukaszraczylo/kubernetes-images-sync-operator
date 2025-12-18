@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "chart.fullname" . }}-raczylo.com-clusterimageexport-viewer-role
+  labels:
+  {{- include "chart.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - raczylo.com
+  resources:
+  - clusterimageexports
+  - clusterimageexports/status
+  verbs:
+  - get
+  - list
+  - watch

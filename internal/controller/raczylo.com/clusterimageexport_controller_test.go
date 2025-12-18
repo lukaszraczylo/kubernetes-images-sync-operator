@@ -51,20 +51,26 @@ var _ = Describe("ClusterImageExport Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: raczylocomv1.ClusterImageExportSpec{
+						Name:              resourceName,
+						BasePath:          "/backups/test",
+						MaxConcurrentJobs: 1,
+						Storage: raczylocomv1.ClusterImageStorageSpec{
+							StorageTarget: "FILE",
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
+			By("Cleanup the specific resource instance ClusterImageExport")
 			resource := &raczylocomv1.ClusterImageExport{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Cleanup the specific resource instance ClusterImageExport")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			if err == nil {
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			}
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")

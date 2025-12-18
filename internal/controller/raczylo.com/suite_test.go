@@ -19,6 +19,7 @@ package raczylocom
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -28,6 +29,8 @@ import (
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -58,17 +61,18 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	By("bootstrapping test environment")
+
+	// Use KUBEBUILDER_ASSETS if set (CI), otherwise fall back to local path
+	binaryAssetsDir := os.Getenv("KUBEBUILDER_ASSETS")
+	if binaryAssetsDir == "" {
+		binaryAssetsDir = filepath.Join("..", "..", "..", "bin", "k8s",
+			fmt.Sprintf("1.31.0-%s-%s", runtime.GOOS, runtime.GOARCH))
+	}
+
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
-
-		// The BinaryAssetsDirectory is only required if you want to run the tests directly
-		// without call the makefile target test. If not informed it will look for the
-		// default path defined in controller-runtime which is /usr/local/kubebuilder/.
-		// Note that you must have the required binaries setup under the bin directory to perform
-		// the tests directly. When we run make test it will be setup and used automatically.
-		BinaryAssetsDirectory: filepath.Join("..", "..", "..", "bin", "k8s",
-			fmt.Sprintf("1.31.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
+		BinaryAssetsDirectory: binaryAssetsDir,
 	}
 
 	var err error
@@ -82,8 +86,38 @@ var _ = BeforeSuite(func() {
 
 	// +kubebuilder:scaffold:scheme
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	// Create a manager to get a cache-backed client that supports field selectors
+	// Explicitly configure cache to watch ClusterImage and ClusterImageExport resources
+	// This is required for field selectors to work in tests (without registering controllers)
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&raczylocomv1.ClusterImage{}:       {},
+				&raczylocomv1.ClusterImageExport{}: {},
+			},
+		},
+	})
 	Expect(err).NotTo(HaveOccurred())
+
+	// Add field index for spec.exportName on ClusterImage
+	err = mgr.GetFieldIndexer().IndexField(ctx, &raczylocomv1.ClusterImage{}, "spec.exportName", func(obj client.Object) []string {
+		clusterImage := obj.(*raczylocomv1.ClusterImage)
+		return []string{clusterImage.Spec.ExportName}
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	// Start the manager cache in background
+	go func() {
+		defer GinkgoRecover()
+		err := mgr.Start(ctx)
+		Expect(err).NotTo(HaveOccurred())
+	}()
+
+	// Wait for cache to sync
+	Expect(mgr.GetCache().WaitForCacheSync(ctx)).To(BeTrue())
+
+	k8sClient = mgr.GetClient()
 	Expect(k8sClient).NotTo(BeNil())
 
 })
