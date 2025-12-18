@@ -52,6 +52,8 @@ builds:
 
 archives:
   - id: default
+    ids:
+      - manager
     formats:
       - tar.gz
     name_template: >-
