@@ -29,6 +29,8 @@ import (
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -84,8 +86,38 @@ var _ = BeforeSuite(func() {
 
 	// +kubebuilder:scaffold:scheme
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	// Create a manager to get a cache-backed client that supports field selectors
+	// Explicitly configure cache to watch ClusterImage and ClusterImageExport resources
+	// This is required for field selectors to work in tests (without registering controllers)
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&raczylocomv1.ClusterImage{}:       {},
+				&raczylocomv1.ClusterImageExport{}: {},
+			},
+		},
+	})
 	Expect(err).NotTo(HaveOccurred())
+
+	// Add field index for spec.exportName on ClusterImage
+	err = mgr.GetFieldIndexer().IndexField(ctx, &raczylocomv1.ClusterImage{}, "spec.exportName", func(obj client.Object) []string {
+		clusterImage := obj.(*raczylocomv1.ClusterImage)
+		return []string{clusterImage.Spec.ExportName}
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	// Start the manager cache in background
+	go func() {
+		defer GinkgoRecover()
+		err := mgr.Start(ctx)
+		Expect(err).NotTo(HaveOccurred())
+	}()
+
+	// Wait for cache to sync
+	Expect(mgr.GetCache().WaitForCacheSync(ctx)).To(BeTrue())
+
+	k8sClient = mgr.GetClient()
 	Expect(k8sClient).NotTo(BeNil())
 
 })
