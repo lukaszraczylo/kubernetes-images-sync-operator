@@ -33,38 +33,73 @@ import (
 var _ = Describe("ClusterImage Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
+		const exportName = "test-export"
 
 		ctx := context.Background()
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default",
+		}
+		exportNamespacedName := types.NamespacedName{
+			Name:      exportName,
+			Namespace: "default",
 		}
 		clusterimage := &raczylocomv1.ClusterImage{}
 
 		BeforeEach(func() {
+			By("creating the ClusterImageExport that the ClusterImage references")
+			export := &raczylocomv1.ClusterImageExport{}
+			err := k8sClient.Get(ctx, exportNamespacedName, export)
+			if err != nil && errors.IsNotFound(err) {
+				exportResource := &raczylocomv1.ClusterImageExport{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      exportName,
+						Namespace: "default",
+					},
+					Spec: raczylocomv1.ClusterImageExportSpec{
+						Name:              exportName,
+						BasePath:          "/backups/test",
+						MaxConcurrentJobs: 1,
+						Storage: raczylocomv1.ClusterImageStorageSpec{
+							StorageTarget: "FILE",
+						},
+					},
+				}
+				Expect(k8sClient.Create(ctx, exportResource)).To(Succeed())
+			}
+
 			By("creating the custom resource for the Kind ClusterImage")
-			err := k8sClient.Get(ctx, typeNamespacedName, clusterimage)
+			err = k8sClient.Get(ctx, typeNamespacedName, clusterimage)
 			if err != nil && errors.IsNotFound(err) {
 				resource := &raczylocomv1.ClusterImage{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: raczylocomv1.ClusterImageSpec{
+						ExportName: exportName,
+						Image:      "nginx:latest",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
+			By("Cleanup the specific resource instance ClusterImage")
 			resource := &raczylocomv1.ClusterImage{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+			if err == nil {
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			}
 
-			By("Cleanup the specific resource instance ClusterImage")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			By("Cleanup the ClusterImageExport")
+			export := &raczylocomv1.ClusterImageExport{}
+			err = k8sClient.Get(ctx, exportNamespacedName, export)
+			if err == nil {
+				Expect(k8sClient.Delete(ctx, export)).To(Succeed())
+			}
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
