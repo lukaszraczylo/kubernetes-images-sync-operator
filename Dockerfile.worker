@@ -4,23 +4,22 @@ ENV DEBIAN_FRONTEND=noninteractive
 ARG TARGETPLATFORM
 ARG TARGETARCH
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    gnupg2 \
-    sudo \
-    jq \
-    && rm -rf /var/lib/apt/lists/*
+# ldconfig can segfault intermittently under QEMU arm64 emulation; retry and reconfigure.
+RUN printf '%s\n' '#!/bin/sh' \
+    'for i in 1 2 3 4 5; do' \
+    '  apt-get update && apt-get install -y --no-install-recommends "$@" && rm -rf /var/lib/apt/lists/* && exit 0' \
+    '  dpkg --configure -a || true' \
+    '  sleep 3' \
+    'done' \
+    'exit 1' > /usr/local/bin/apt-retry \
+    && chmod +x /usr/local/bin/apt-retry
+
+RUN apt-retry ca-certificates curl gnupg2 sudo jq
 
 RUN echo "deb [arch=${TARGETARCH}] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/unstable/xUbuntu_22.04/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list \
     && curl -fsSL "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/unstable/xUbuntu_22.04/Release.key" | apt-key add -
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    uidmap \
-    fuse-overlayfs \
-    podman \
-    netavark \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-retry uidmap fuse-overlayfs podman netavark
 
 RUN adduser --disabled-password --gecos "" --uid 1001 runner \
     && groupadd docker --gid 123 \
