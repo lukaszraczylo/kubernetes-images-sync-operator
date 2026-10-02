@@ -84,7 +84,7 @@ func ProcessContainerName(containerName string) (Container, error) {
 	}
 
 	if cnt.Sha == "" && cnt.Tag == "" {
-		cnt.Tag = "latest"
+		cnt.Tag = DEFAULT_IMAGE_TAG
 	}
 
 	if cnt.Image == "" {
@@ -109,7 +109,7 @@ func processContainers(ctx context.Context, resource K8sResource, namespace stri
 	}
 
 	for _, container := range podSpec.EphemeralContainers {
-		if err := processContainer(ctx, container.EphemeralContainerCommon.Image, namespace, containersList); err != nil {
+		if err := processContainer(ctx, container.Image, namespace, containersList); err != nil {
 			return err
 		}
 	}
@@ -211,7 +211,7 @@ func SetupIndexers(mgr manager.Manager) error {
 		Jitter:   0.1,
 		Steps:    5,
 	}, func() (bool, error) {
-		err := mgr.GetFieldIndexer().IndexField(context.Background(), &raczylocomv1.ClusterImage{}, "spec.exportName", func(rawObj client.Object) []string {
+		err := mgr.GetFieldIndexer().IndexField(context.Background(), &raczylocomv1.ClusterImage{}, FIELD_EXPORT_NAME, func(rawObj client.Object) []string {
 			clusterImage := rawObj.(*raczylocomv1.ClusterImage)
 			return []string{clusterImage.Spec.ExportName}
 		})

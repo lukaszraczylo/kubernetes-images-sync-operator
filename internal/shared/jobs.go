@@ -59,7 +59,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 			Namespace:       params.Namespace,
 			OwnerReferences: params.OwnerReferences,
 			Labels: map[string]string{
-				"app": "image-export",
+				LABEL_APP: "image-export",
 			},
 			Annotations: params.Annotations,
 		},
@@ -69,7 +69,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app": "image-export",
+						LABEL_APP: "image-export",
 					},
 					Annotations: params.Annotations,
 				},
@@ -80,7 +80,7 @@ func CreateJob[T any](params JobParams, setupFunc func(T) []string) *batchv1.Job
 					Volumes:            volumes,
 					Containers: []corev1.Container{
 						{
-							Name:         "exporter",
+							Name:         EXPORTER_CONTAINER,
 							Image:        params.Image,
 							TTY:          true,
 							Command:      []string{},

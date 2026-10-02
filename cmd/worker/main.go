@@ -233,7 +233,7 @@ func uploadToS3(source, destination string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	fmt.Printf("Uploading %s to s3://%s/%s\n", source, bucket, key)
 
@@ -261,7 +261,7 @@ func copyLocal(source, destination string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	// Get source file info for permissions
 	srcInfo, err := srcFile.Stat()
@@ -274,7 +274,7 @@ func copyLocal(source, destination string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	// Copy content
 	if _, err := io.Copy(dstFile, srcFile); err != nil {

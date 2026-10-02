@@ -144,7 +144,7 @@ func (r *ClusterImageReconciler) handlePendingClusterImage(ctx context.Context, 
 	}
 
 	// Create the backup job
-	if err := r.createBackupJob(ctx, clusterImage, clusterImageExport, l); err != nil {
+	if err := r.createBackupJob(ctx, clusterImage, clusterImageExport); err != nil {
 		l.Error(err, "unable to create backup job")
 		return ctrl.Result{}, err
 	}
@@ -349,7 +349,7 @@ func (r *ClusterImageReconciler) cleanupJobAndPods(ctx context.Context, job *v1b
 	return nil
 }
 
-func (r *ClusterImageReconciler) createBackupJob(ctx context.Context, clusterImage *raczylocomv1.ClusterImage, clusterImageExport *raczylocomv1.ClusterImageExport, l logr.Logger) error {
+func (r *ClusterImageReconciler) createBackupJob(ctx context.Context, clusterImage *raczylocomv1.ClusterImage, clusterImageExport *raczylocomv1.ClusterImageExport) error {
 	normalisedImageName := shared.NormalizeImageName(clusterImage.Spec.FullName)
 
 	defaultCommands := []string{
@@ -357,13 +357,14 @@ func (r *ClusterImageReconciler) createBackupJob(ctx context.Context, clusterIma
 		"podman save --quiet -o /tmp/" + normalisedImageName + ".tar " + clusterImage.Spec.FullName,
 	}
 
-	if clusterImage.Spec.Storage == shared.STORAGE_S3 {
+	switch clusterImage.Spec.Storage {
+	case shared.STORAGE_S3:
 		s3Params := shared.SetupS3Params(clusterImageExport.Spec.Storage.S3)
 		additionalCommands := []string{
 			"./worker export " + strings.Join(s3Params, " ") + " '/tmp/" + normalisedImageName + ".tar' " + "'s3://" + clusterImageExport.Spec.Storage.S3.Bucket + clusterImage.Spec.ExportPath + "/" + clusterImage.Spec.ExportName + "/" + normalisedImageName + ".tar'",
 		}
 		defaultCommands = append(defaultCommands, additionalCommands...)
-	} else if clusterImage.Spec.Storage == shared.STORAGE_FILE {
+	case shared.STORAGE_FILE:
 		additionalCommands := []string{
 			"./worker export '/tmp/" + normalisedImageName + ".tar' '" + clusterImage.Spec.ExportPath + "/" + clusterImage.Spec.ExportName + "/" + normalisedImageName + ".tar'",
 		}
@@ -426,7 +427,7 @@ func (r *ClusterImageReconciler) updateClusterImageExportStatus(ctx context.Cont
 	}
 
 	clusterImageList := &raczylocomv1.ClusterImageList{}
-	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImage.Namespace), client.MatchingFields{"spec.exportName": clusterImage.Spec.ExportName}); err != nil {
+	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImage.Namespace), client.MatchingFields{shared.FIELD_EXPORT_NAME: clusterImage.Spec.ExportName}); err != nil {
 		l.Error(err, "unable to list ClusterImages")
 		return ctrl.Result{}, err
 	}

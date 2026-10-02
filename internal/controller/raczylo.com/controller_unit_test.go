@@ -24,6 +24,8 @@ import (
 
 type TestScenario string
 
+const testNamespace = "default"
+
 const (
 	ScenarioGood      TestScenario = "good"
 	ScenarioNotGood   TestScenario = "not_good"
@@ -60,7 +62,7 @@ func (s *ControllerTestSuite) newFakeClient(objs ...client.Object) client.Client
 }
 
 // Helper to create a test ClusterImageExport
-func (s *ControllerTestSuite) createClusterImageExport(name, namespace string, opts ...func(*raczylocomv1.ClusterImageExport)) *raczylocomv1.ClusterImageExport {
+func (s *ControllerTestSuite) createClusterImageExport(name string, opts ...func(*raczylocomv1.ClusterImageExport)) *raczylocomv1.ClusterImageExport {
 	export := &raczylocomv1.ClusterImageExport{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "raczylo.com/v1",
@@ -68,7 +70,7 @@ func (s *ControllerTestSuite) createClusterImageExport(name, namespace string, o
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: testNamespace,
 			UID:       "test-uid-export",
 		},
 		Spec: raczylocomv1.ClusterImageExportSpec{
@@ -91,7 +93,7 @@ func (s *ControllerTestSuite) createClusterImageExport(name, namespace string, o
 }
 
 // Helper to create a test ClusterImage
-func (s *ControllerTestSuite) createClusterImage(name, namespace, exportName string, opts ...func(*raczylocomv1.ClusterImage)) *raczylocomv1.ClusterImage {
+func (s *ControllerTestSuite) createClusterImage(name, exportName string, opts ...func(*raczylocomv1.ClusterImage)) *raczylocomv1.ClusterImage {
 	image := &raczylocomv1.ClusterImage{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "raczylo.com/v1",
@@ -99,7 +101,7 @@ func (s *ControllerTestSuite) createClusterImage(name, namespace, exportName str
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: testNamespace,
 			UID:       "test-uid-image",
 		},
 		Spec: raczylocomv1.ClusterImageSpec{
@@ -141,8 +143,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_NotFound() {
 
 func (s *ControllerTestSuite) TestClusterImageReconcile_InitialStatus_Pending() {
 	// Scenario: Good - new ClusterImage should be set to PENDING
-	export := s.createClusterImageExport("test-export", "default")
-	image := s.createClusterImage("test-image", "default", "test-export")
+	export := s.createClusterImageExport("test-export")
+	image := s.createClusterImage("test-image", "test-export")
 
 	client := s.newFakeClient(export, image)
 	reconciler := &ClusterImageReconciler{
@@ -160,7 +162,7 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_InitialStatus_Pending() 
 
 	result, err := reconciler.Reconcile(s.ctx, req)
 	require.NoError(s.T(), err)
-	assert.True(s.T(), result.Requeue) //lint:ignore SA1019 testing controller's actual behavior
+	assert.True(s.T(), result.Requeue) //nolint:staticcheck // testing controller's actual behavior
 
 	// Verify status was updated to PENDING
 	updatedImage := &raczylocomv1.ClusterImage{}
@@ -171,7 +173,7 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_InitialStatus_Pending() 
 
 func (s *ControllerTestSuite) TestClusterImageReconcile_MissingExport() {
 	// Scenario: Not Good - ClusterImageExport doesn't exist
-	image := s.createClusterImage("test-image", "default", "non-existent-export", func(i *raczylocomv1.ClusterImage) {
+	image := s.createClusterImage("test-image", "non-existent-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_PENDING
 	})
 
@@ -196,8 +198,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_MissingExport() {
 
 func (s *ControllerTestSuite) TestClusterImageReconcile_MaxParallelJobsReached() {
 	// Scenario: Good - should requeue when max jobs reached
-	export := s.createClusterImageExport("test-export", "default")
-	image := s.createClusterImage("test-image", "default", "test-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("test-export")
+	image := s.createClusterImage("test-image", "test-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_PENDING
 	})
 
@@ -223,8 +225,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_MaxParallelJobsReached()
 
 func (s *ControllerTestSuite) TestClusterImageReconcile_SuccessStatus() {
 	// Scenario: Good - success status should not trigger further action
-	export := s.createClusterImageExport("test-export", "default")
-	image := s.createClusterImage("test-image", "default", "test-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("test-export")
+	image := s.createClusterImage("test-image", "test-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_SUCCESS
 	})
 
@@ -248,8 +250,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_SuccessStatus() {
 
 func (s *ControllerTestSuite) TestClusterImageReconcile_FailedStatus() {
 	// Scenario: Good - failed status should not trigger further action
-	export := s.createClusterImageExport("test-export", "default")
-	image := s.createClusterImage("test-image", "default", "test-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("test-export")
+	image := s.createClusterImage("test-image", "test-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_FAILED
 	})
 
@@ -273,8 +275,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_FailedStatus() {
 
 func (s *ControllerTestSuite) TestClusterImageReconcile_PresentStatus() {
 	// Scenario: Good - present status should not trigger further action
-	export := s.createClusterImageExport("test-export", "default")
-	image := s.createClusterImage("test-image", "default", "test-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("test-export")
+	image := s.createClusterImage("test-image", "test-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_PRESENT
 	})
 
@@ -320,7 +322,7 @@ func (s *ControllerTestSuite) TestClusterImageExportReconcile_NotFound() {
 
 func (s *ControllerTestSuite) TestClusterImageExportReconcile_AddFinalizer() {
 	// Scenario: Good - should add finalizer to new export
-	export := s.createClusterImageExport("test-export", "default")
+	export := s.createClusterImageExport("test-export")
 
 	client := s.newFakeClient(export)
 	reconciler := &ClusterImageExportReconciler{
@@ -347,7 +349,7 @@ func (s *ControllerTestSuite) TestClusterImageExportReconcile_AddFinalizer() {
 
 func (s *ControllerTestSuite) TestClusterImageExportReconcile_AddCreationTimestamp() {
 	// Scenario: Good - should add creation timestamp annotation
-	export := s.createClusterImageExport("test-export", "default")
+	export := s.createClusterImageExport("test-export")
 
 	client := s.newFakeClient(export)
 	reconciler := &ClusterImageExportReconciler{
@@ -405,8 +407,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_MatrixScenarios() {
 			Scenario:    ScenarioGood,
 			Description: "New ClusterImage should be initialized to PENDING",
 			SetupFunc: func(s *ControllerTestSuite) (client.Client, *ClusterImageReconciler, reconcile.Request) {
-				export := s.createClusterImageExport("export-1", "default")
-				image := s.createClusterImage("image-1", "default", "export-1")
+				export := s.createClusterImageExport("export-1")
+				image := s.createClusterImage("image-1", "export-1")
 				c := s.newFakeClient(export, image)
 				r := &ClusterImageReconciler{Client: c, Scheme: s.scheme, MaxParallelJobs: 5}
 				req := reconcile.Request{NamespacedName: types.NamespacedName{Name: "image-1", Namespace: "default"}}
@@ -420,7 +422,7 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_MatrixScenarios() {
 			Scenario:    ScenarioNotGood,
 			Description: "ClusterImage with missing export should error",
 			SetupFunc: func(s *ControllerTestSuite) (client.Client, *ClusterImageReconciler, reconcile.Request) {
-				image := s.createClusterImage("orphan-image", "default", "missing-export", func(i *raczylocomv1.ClusterImage) {
+				image := s.createClusterImage("orphan-image", "missing-export", func(i *raczylocomv1.ClusterImage) {
 					i.Status.Progress = shared.STATUS_PENDING
 				})
 				c := s.newFakeClient(image)
@@ -435,8 +437,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_MatrixScenarios() {
 			Scenario:    ScenarioGood,
 			Description: "ClusterImage with SUCCESS status should not trigger action",
 			SetupFunc: func(s *ControllerTestSuite) (client.Client, *ClusterImageReconciler, reconcile.Request) {
-				export := s.createClusterImageExport("export-2", "default")
-				image := s.createClusterImage("success-image", "default", "export-2", func(i *raczylocomv1.ClusterImage) {
+				export := s.createClusterImageExport("export-2")
+				image := s.createClusterImage("success-image", "export-2", func(i *raczylocomv1.ClusterImage) {
 					i.Status.Progress = shared.STATUS_SUCCESS
 				})
 				c := s.newFakeClient(export, image)
@@ -452,8 +454,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_MatrixScenarios() {
 			Scenario:    ScenarioNotGood,
 			Description: "ClusterImage with FAILED status should not trigger action",
 			SetupFunc: func(s *ControllerTestSuite) (client.Client, *ClusterImageReconciler, reconcile.Request) {
-				export := s.createClusterImageExport("export-3", "default")
-				image := s.createClusterImage("failed-image", "default", "export-3", func(i *raczylocomv1.ClusterImage) {
+				export := s.createClusterImageExport("export-3")
+				image := s.createClusterImage("failed-image", "export-3", func(i *raczylocomv1.ClusterImage) {
 					i.Status.Progress = shared.STATUS_FAILED
 				})
 				c := s.newFakeClient(export, image)
@@ -507,8 +509,8 @@ func (s *ControllerTestSuite) TestClusterImageReconcile_MatrixScenarios() {
 func (s *ControllerTestSuite) TestClusterImage_ConcurrentUpdates() {
 	// Scenario: Good - simulate concurrent reconciliation on PENDING status
 	// This test verifies that multiple reconciliations don't corrupt state
-	export := s.createClusterImageExport("concurrent-export", "default")
-	image := s.createClusterImage("concurrent-image", "default", "concurrent-export")
+	export := s.createClusterImageExport("concurrent-export")
+	image := s.createClusterImage("concurrent-image", "concurrent-export")
 
 	fakeClient := s.newFakeClient(export, image)
 	reconciler := &ClusterImageReconciler{
@@ -527,7 +529,7 @@ func (s *ControllerTestSuite) TestClusterImage_ConcurrentUpdates() {
 	// First reconciliation should set status to PENDING
 	result, err := reconciler.Reconcile(s.ctx, req)
 	assert.NoError(s.T(), err)
-	assert.True(s.T(), result.Requeue) //lint:ignore SA1019 testing controller's actual behavior
+	assert.True(s.T(), result.Requeue) //nolint:staticcheck // testing controller's actual behavior
 
 	// Verify status was set
 	finalImage := &raczylocomv1.ClusterImage{}
@@ -578,7 +580,7 @@ func (s *ControllerTestSuite) TestClusterImage_ActiveJobsMutex() {
 
 func (s *ControllerTestSuite) TestClusterImageExport_WithDeletionTimestamp() {
 	// Scenario: Good - export being deleted should trigger cleanup
-	export := s.createClusterImageExport("deleting-export", "default")
+	export := s.createClusterImageExport("deleting-export")
 	now := metav1.Now()
 	export.DeletionTimestamp = &now
 	export.Finalizers = []string{clusterImageExportFinalizer}
@@ -607,8 +609,8 @@ func (s *ControllerTestSuite) TestClusterImageExport_WithDeletionTimestamp() {
 
 func (s *ControllerTestSuite) TestClusterImage_SHAPinnedImages() {
 	// Scenario: Good - SHA-pinned images should be handled correctly
-	export := s.createClusterImageExport("sha-export", "default")
-	image := s.createClusterImage("sha-image", "default", "sha-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("sha-export")
+	image := s.createClusterImage("sha-image", "sha-export", func(i *raczylocomv1.ClusterImage) {
 		i.Spec.Image = "quay.io/cilium/cilium"
 		i.Spec.Tag = "v1.18.4"
 		i.Spec.Sha = "sha256:49d87af187eeeb9e9e3ec2bc6bd372261a0b5cb2d845659463ba7cc10fe9e45f"
@@ -631,7 +633,7 @@ func (s *ControllerTestSuite) TestClusterImage_SHAPinnedImages() {
 
 	result, err := reconciler.Reconcile(s.ctx, req)
 	assert.NoError(s.T(), err)
-	assert.True(s.T(), result.Requeue) //lint:ignore SA1019 testing controller's actual behavior
+	assert.True(s.T(), result.Requeue) //nolint:staticcheck // testing controller's actual behavior
 }
 
 func (s *ControllerTestSuite) TestClusterImage_MultipleRegistries() {
@@ -647,11 +649,12 @@ func (s *ControllerTestSuite) TestClusterImage_MultipleRegistries() {
 		{"quay-image", "quay.io/coreos/etcd", "quay.io/coreos/etcd:v3.5.0"},
 	}
 
-	export := s.createClusterImageExport("multi-registry-export", "default")
-	objs := []client.Object{export}
+	export := s.createClusterImageExport("multi-registry-export")
+	objs := make([]client.Object, 0, 1+len(registries))
+	objs = append(objs, export)
 
 	for _, reg := range registries {
-		img := s.createClusterImage(reg.name, "default", "multi-registry-export", func(i *raczylocomv1.ClusterImage) {
+		img := s.createClusterImage(reg.name, "multi-registry-export", func(i *raczylocomv1.ClusterImage) {
 			i.Spec.Image = reg.image
 			i.Spec.FullName = reg.fullName
 		})
@@ -675,7 +678,7 @@ func (s *ControllerTestSuite) TestClusterImage_MultipleRegistries() {
 
 		result, err := reconciler.Reconcile(s.ctx, req)
 		assert.NoError(s.T(), err, "Failed for registry: %s", reg.name)
-		assert.True(s.T(), result.Requeue) //lint:ignore SA1019 testing controller's actual behavior
+		assert.True(s.T(), result.Requeue) //nolint:staticcheck // testing controller's actual behavior
 	}
 }
 
@@ -683,7 +686,7 @@ func (s *ControllerTestSuite) TestClusterImage_MultipleRegistries() {
 
 func (s *ControllerTestSuite) TestClusterImageExport_S3Storage() {
 	// Scenario: Good - S3 storage configuration
-	export := s.createClusterImageExport("s3-export", "default", func(e *raczylocomv1.ClusterImageExport) {
+	export := s.createClusterImageExport("s3-export", func(e *raczylocomv1.ClusterImageExport) {
 		e.Spec.Storage = raczylocomv1.ClusterImageStorageSpec{
 			StorageTarget: shared.STORAGE_S3,
 			S3: raczylocomv1.ClusterImageStorageS3{
@@ -721,7 +724,7 @@ func (s *ControllerTestSuite) TestClusterImageExport_S3Storage() {
 
 func (s *ControllerTestSuite) TestClusterImageExport_FileStorage() {
 	// Scenario: Good - File storage configuration
-	export := s.createClusterImageExport("file-export", "default", func(e *raczylocomv1.ClusterImageExport) {
+	export := s.createClusterImageExport("file-export", func(e *raczylocomv1.ClusterImageExport) {
 		e.Spec.Storage = raczylocomv1.ClusterImageStorageSpec{
 			StorageTarget: shared.STORAGE_FILE,
 		}
@@ -749,7 +752,7 @@ func (s *ControllerTestSuite) TestClusterImageExport_FileStorage() {
 
 func (s *ControllerTestSuite) TestClusterImage_EmptySpec() {
 	// Scenario: Really Bad - empty spec should be handled
-	export := s.createClusterImageExport("empty-spec-export", "default")
+	export := s.createClusterImageExport("empty-spec-export")
 	image := &raczylocomv1.ClusterImage{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "raczylo.com/v1",
@@ -782,12 +785,12 @@ func (s *ControllerTestSuite) TestClusterImage_EmptySpec() {
 	result, err := reconciler.Reconcile(s.ctx, req)
 	// Should not error, just set to pending
 	assert.NoError(s.T(), err)
-	assert.True(s.T(), result.Requeue) //lint:ignore SA1019 testing controller's actual behavior
+	assert.True(s.T(), result.Requeue) //nolint:staticcheck // testing controller's actual behavior
 }
 
 func (s *ControllerTestSuite) TestClusterImageExport_EmptyNamespaces() {
 	// Scenario: Good - export with no namespace filters should process all
-	export := s.createClusterImageExport("all-ns-export", "default", func(e *raczylocomv1.ClusterImageExport) {
+	export := s.createClusterImageExport("all-ns-export", func(e *raczylocomv1.ClusterImageExport) {
 		e.Spec.Namespaces = []string{}
 		e.Spec.ExcludedNamespaces = []string{}
 	})
@@ -811,7 +814,7 @@ func (s *ControllerTestSuite) TestClusterImageExport_EmptyNamespaces() {
 
 func (s *ControllerTestSuite) TestClusterImageExport_WithAdditionalImages() {
 	// Scenario: Good - export with additional images specified
-	export := s.createClusterImageExport("additional-images-export", "default", func(e *raczylocomv1.ClusterImageExport) {
+	export := s.createClusterImageExport("additional-images-export", func(e *raczylocomv1.ClusterImageExport) {
 		e.Spec.AdditionalImages = []string{
 			"nginx:1.21",
 			"redis:7.0",
@@ -838,7 +841,7 @@ func (s *ControllerTestSuite) TestClusterImageExport_WithAdditionalImages() {
 
 func (s *ControllerTestSuite) TestClusterImageExport_WithIncludesExcludes() {
 	// Scenario: Good - export with include/exclude filters
-	export := s.createClusterImageExport("filtered-export", "default", func(e *raczylocomv1.ClusterImageExport) {
+	export := s.createClusterImageExport("filtered-export", func(e *raczylocomv1.ClusterImageExport) {
 		e.Spec.Includes = []string{"nginx", "redis"}
 		e.Spec.Excludes = []string{"test", "dev"}
 		e.Spec.Namespaces = []string{"production", "staging"}
@@ -864,8 +867,8 @@ func (s *ControllerTestSuite) TestClusterImageExport_WithIncludesExcludes() {
 
 func (s *ControllerTestSuite) TestClusterImage_WithImagePullSecrets() {
 	// Scenario: Good - image with pull secrets should work
-	export := s.createClusterImageExport("secret-export", "default")
-	image := s.createClusterImage("secret-image", "default", "secret-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("secret-export")
+	image := s.createClusterImage("secret-image", "secret-export", func(i *raczylocomv1.ClusterImage) {
 		i.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
 			{Name: "docker-registry-secret"},
 			{Name: "gcr-json-key"},
@@ -888,17 +891,17 @@ func (s *ControllerTestSuite) TestClusterImage_WithImagePullSecrets() {
 
 	result, err := reconciler.Reconcile(s.ctx, req)
 	assert.NoError(s.T(), err)
-	assert.True(s.T(), result.Requeue) //lint:ignore SA1019 testing controller's actual behavior
+	assert.True(s.T(), result.Requeue) //nolint:staticcheck // testing controller's actual behavior
 }
 
 func (s *ControllerTestSuite) TestClusterImage_WithJobAnnotations() {
 	// Scenario: Good - image with job annotations
-	export := s.createClusterImageExport("annotated-export", "default", func(e *raczylocomv1.ClusterImageExport) {
+	export := s.createClusterImageExport("annotated-export", func(e *raczylocomv1.ClusterImageExport) {
 		e.Spec.JobAnnotations = map[string]string{
 			"iam.amazonaws.com/role": "arn:aws:iam::123456789:role/BackupRole",
 		}
 	})
-	image := s.createClusterImage("annotated-image", "default", "annotated-export", func(i *raczylocomv1.ClusterImage) {
+	image := s.createClusterImage("annotated-image", "annotated-export", func(i *raczylocomv1.ClusterImage) {
 		i.Spec.JobAnnotations = map[string]string{
 			"custom/annotation": "value",
 		}
@@ -920,7 +923,7 @@ func (s *ControllerTestSuite) TestClusterImage_WithJobAnnotations() {
 
 	result, err := reconciler.Reconcile(s.ctx, req)
 	assert.NoError(s.T(), err)
-	assert.True(s.T(), result.Requeue) //lint:ignore SA1019 testing controller's actual behavior
+	assert.True(s.T(), result.Requeue) //nolint:staticcheck // testing controller's actual behavior
 }
 
 // ==================== Job Status Tests ====================
@@ -930,8 +933,8 @@ func (s *ControllerTestSuite) TestClusterImage_SuccessfulJobCompletion() {
 	// Note: Full integration testing requires envtest for KubeClient
 	// This test validates the basic state machine transitions
 
-	export := s.createClusterImageExport("job-success-export", "default")
-	image := s.createClusterImage("job-success-image", "default", "job-success-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("job-success-export")
+	image := s.createClusterImage("job-success-image", "job-success-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_SUCCESS // Already completed
 	})
 
@@ -963,8 +966,8 @@ func (s *ControllerTestSuite) TestClusterImage_SuccessfulJobCompletion() {
 
 func (s *ControllerTestSuite) TestClusterImage_RetryCount() {
 	// Scenario: Good - verify retry count is tracked properly
-	export := s.createClusterImageExport("retry-export", "default")
-	image := s.createClusterImage("retry-image", "default", "retry-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("retry-export")
+	image := s.createClusterImage("retry-image", "retry-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_FAILED // Terminal state
 		i.Status.RetryCount = 2
 	})
@@ -997,8 +1000,8 @@ func (s *ControllerTestSuite) TestClusterImage_RetryCount() {
 
 func (s *ControllerTestSuite) TestClusterImage_MaxRetriesReached() {
 	// Scenario: Not Good - max retries reached and FAILED status
-	export := s.createClusterImageExport("max-retry-export", "default")
-	image := s.createClusterImage("max-retry-image", "default", "max-retry-export", func(i *raczylocomv1.ClusterImage) {
+	export := s.createClusterImageExport("max-retry-export")
+	image := s.createClusterImage("max-retry-image", "max-retry-export", func(i *raczylocomv1.ClusterImage) {
 		i.Status.Progress = shared.STATUS_FAILED
 		i.Status.RetryCount = 3 // Max retries reached
 	})

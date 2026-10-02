@@ -204,18 +204,18 @@ func (s *JobsTestSuite) TestCreateJob() {
 			require.NotNil(s.T(), job, "Job should not be nil")
 
 			// Verify job metadata
-			assert.Equal(s.T(), tc.expectJobName, job.ObjectMeta.Name)
-			assert.Equal(s.T(), tc.expectNamespace, job.ObjectMeta.Namespace)
+			assert.Equal(s.T(), tc.expectJobName, job.Name)
+			assert.Equal(s.T(), tc.expectNamespace, job.Namespace)
 
 			// Verify labels
-			assert.Equal(s.T(), "image-export", job.ObjectMeta.Labels["app"])
-			assert.Equal(s.T(), "image-export", job.Spec.Template.ObjectMeta.Labels["app"])
+			assert.Equal(s.T(), "image-export", job.Labels["app"])
+			assert.Equal(s.T(), "image-export", job.Spec.Template.Labels["app"])
 
 			// Verify annotations if expected
 			if tc.expectAnnotations != nil {
 				for k, v := range tc.expectAnnotations {
-					assert.Equal(s.T(), v, job.ObjectMeta.Annotations[k])
-					assert.Equal(s.T(), v, job.Spec.Template.ObjectMeta.Annotations[k])
+					assert.Equal(s.T(), v, job.Annotations[k])
+					assert.Equal(s.T(), v, job.Spec.Template.Annotations[k])
 				}
 			}
 
@@ -268,9 +268,9 @@ func (s *JobsTestSuite) TestCreateJobWithOwnerReferences() {
 
 	job := CreateJob(params, func(raczylocomv1.ClusterImageExport) []string { return nil })
 
-	require.Len(s.T(), job.ObjectMeta.OwnerReferences, 1)
-	assert.Equal(s.T(), "ClusterImage", job.ObjectMeta.OwnerReferences[0].Kind)
-	assert.Equal(s.T(), "test-image", job.ObjectMeta.OwnerReferences[0].Name)
+	require.Len(s.T(), job.OwnerReferences, 1)
+	assert.Equal(s.T(), "ClusterImage", job.OwnerReferences[0].Kind)
+	assert.Equal(s.T(), "test-image", job.OwnerReferences[0].Name)
 }
 
 // TestCreateJobCommands tests command concatenation
@@ -525,7 +525,7 @@ func (s *JobsTestSuite) TestSecretVolumeMounting() {
 	// Verify volumes are created
 	require.Len(s.T(), podSpec.Volumes, 3)
 	for i, vol := range podSpec.Volumes {
-		assert.Equal(s.T(), secrets[i].Name, vol.VolumeSource.Secret.SecretName)
+		assert.Equal(s.T(), secrets[i].Name, vol.Secret.SecretName)
 		assert.Contains(s.T(), vol.Name, "secret-")
 	}
 

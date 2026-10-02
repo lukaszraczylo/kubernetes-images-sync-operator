@@ -19,6 +19,7 @@ package v1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // RetentionPolicy defines how many completed ClusterImageExport resources to keep
@@ -136,5 +137,8 @@ type ClusterImageExportList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterImageExport{}, &ClusterImageExportList{})
+	SchemeBuilder.Register(func(s *runtime.Scheme) error {
+		s.AddKnownTypes(GroupVersion, &ClusterImageExport{}, &ClusterImageExportList{})
+		return nil
+	})
 }

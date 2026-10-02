@@ -29,6 +29,11 @@ const (
 	// STORAGE DEFINITIONS
 	STORAGE_S3   = "S3"
 	STORAGE_FILE = "FILE"
+
+	FIELD_EXPORT_NAME  = "spec.exportName"
+	DEFAULT_IMAGE_TAG  = "latest"
+	LABEL_APP          = "app"
+	EXPORTER_CONTAINER = "exporter"
 )
 
 type Container struct {

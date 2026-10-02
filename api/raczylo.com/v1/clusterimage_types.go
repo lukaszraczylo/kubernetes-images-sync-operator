@@ -19,6 +19,7 @@ package v1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // ClusterImageSpec defines the desired state of ClusterImage
@@ -81,5 +82,8 @@ type ClusterImageList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&ClusterImage{}, &ClusterImageList{})
+	SchemeBuilder.Register(func(s *runtime.Scheme) error {
+		s.AddKnownTypes(GroupVersion, &ClusterImage{}, &ClusterImageList{})
+		return nil
+	})
 }

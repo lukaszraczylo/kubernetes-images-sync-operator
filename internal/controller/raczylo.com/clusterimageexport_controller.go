@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,6 +47,7 @@ func (r *ClusterImageExportReconciler) InjectPodAnnotations(annotations map[stri
 
 const clusterImageExportFinalizer = "raczylo.com/clusterimageexport-finalizer"
 
+//nolint:gocyclo // single reconcile state machine; splitting is out of scope
 func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 	// l.Info("Reconciling ClusterImageExport")
@@ -58,7 +58,7 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !clusterImageExport.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !clusterImageExport.DeletionTimestamp.IsZero() {
 		return r.handleDeletion(ctx, clusterImageExport)
 	}
 
@@ -99,7 +99,7 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Proceed with reconciliation logic
 	// Get list of all images to be exported
-	fullImagesList, err := r.listImagesInCluster(ctx, l, clusterImageExport)
+	fullImagesList, err := r.listImagesInCluster(ctx, clusterImageExport)
 	if err != nil {
 		l.Error(err, "unable to list images in the cluster")
 		return ctrl.Result{}, err
@@ -201,7 +201,7 @@ func (r *ClusterImageExportReconciler) Reconcile(ctx context.Context, req ctrl.R
 	pendingCount := 0
 	clusterImageList := &raczylocomv1.ClusterImageList{}
 	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImageExport.Namespace),
-		client.MatchingFields{"spec.exportName": clusterImageExport.Name}); err != nil {
+		client.MatchingFields{shared.FIELD_EXPORT_NAME: clusterImageExport.Name}); err != nil {
 		l.Error(err, "unable to list ClusterImages")
 		return ctrl.Result{}, err
 	}
@@ -288,7 +288,7 @@ func (r *ClusterImageExportReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		Complete(r)
 }
 
-func (r *ClusterImageExportReconciler) listImagesInCluster(ctx context.Context, l logr.Logger, clusterImageExport *raczylocomv1.ClusterImageExport) (shared.ContainersList, error) {
+func (r *ClusterImageExportReconciler) listImagesInCluster(ctx context.Context, clusterImageExport *raczylocomv1.ClusterImageExport) (shared.ContainersList, error) {
 	containersList := shared.ContainersList{}
 	if err := shared.ListAndProcessResources[*shared.DeploymentWrapper](ctx, r.Client, &appsv1.DeploymentList{}, &containersList); err != nil {
 		return shared.ContainersList{}, err
@@ -388,7 +388,7 @@ func (r *ClusterImageExportReconciler) deleteAssociatedClusterImages(ctx context
 	// List all ClusterImages associated with this export
 	clusterImageList := &raczylocomv1.ClusterImageList{}
 	if err := r.List(ctx, clusterImageList, client.InNamespace(clusterImageExport.Namespace),
-		client.MatchingFields{"spec.exportName": clusterImageExport.Name}); err != nil {
+		client.MatchingFields{shared.FIELD_EXPORT_NAME: clusterImageExport.Name}); err != nil {
 		return fmt.Errorf("failed to list ClusterImages: %w", err)
 	}
 
@@ -409,15 +409,16 @@ func (r *ClusterImageExportReconciler) runCleanupJob(ctx context.Context, cluste
 
 	defaultCommands := []string{}
 
-	if clusterImageExport.Spec.Storage.StorageTarget == shared.STORAGE_S3 {
+	switch clusterImageExport.Spec.Storage.StorageTarget {
+	case shared.STORAGE_S3:
 		s3Params := shared.SetupS3Params(clusterImageExport.Spec.Storage.S3)
 		additionalCommands := []string{
-			"./worker cleanup " + strings.Join(s3Params, " ") + " 's3://" + clusterImageExport.Spec.Storage.S3.Bucket + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.ObjectMeta.Name + "/'",
+			"./worker cleanup " + strings.Join(s3Params, " ") + " 's3://" + clusterImageExport.Spec.Storage.S3.Bucket + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.Name + "/'",
 		}
 		defaultCommands = append(defaultCommands, additionalCommands...)
-	} else if clusterImageExport.Spec.Storage.StorageTarget == shared.STORAGE_FILE {
+	case shared.STORAGE_FILE:
 		additionalCommands := []string{
-			"./worker cleanup '" + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.ObjectMeta.Name + "/'",
+			"./worker cleanup '" + clusterImageExport.Spec.BasePath + "/" + clusterImageExport.Name + "/'",
 		}
 		defaultCommands = append(defaultCommands, additionalCommands...)
 	}
@@ -534,9 +535,10 @@ func (r *ClusterImageExportReconciler) cleanupByRetention(ctx context.Context, c
 			export.Status.Progress != shared.STATUS_FAILED {
 			continue
 		}
-		if export.Status.Progress == shared.STATUS_SUCCESS {
+		switch export.Status.Progress {
+		case shared.STATUS_SUCCESS:
 			successfulExports = append(successfulExports, export)
-		} else if export.Status.Progress == shared.STATUS_FAILED {
+		case shared.STATUS_FAILED:
 			failedExports = append(failedExports, export)
 		}
 	}
