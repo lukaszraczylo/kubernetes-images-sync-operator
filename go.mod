@@ -36,7 +36,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.14.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5 // indirect
-	github.com/aws/smithy-go v1.28.9 // indirect
+	github.com/aws/smithy-go v1.28.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -120,7 +120,7 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/streaming v0.37.2 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.37.1 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.37.2 // indirect
 	sigs.k8s.io/json v0.0.0-20260909141634-11ed52e25bc5 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
